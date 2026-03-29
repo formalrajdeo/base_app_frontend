@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 
 type Action = "READ" | "CREATE" | "UPDATE" | "DELETE";
 const ACTIONS: Action[] = ["READ", "CREATE", "UPDATE", "DELETE"];
@@ -63,7 +63,7 @@ export default function PermissionsPage() {
             return acc;
         }, {})
         : {};
-        
+
     // Mutations
     const createResourcePermission = useMutation({
         mutationFn: async () => api.post("/permissions", { resource: newResourceName, action: newResourceAction }),
@@ -194,7 +194,10 @@ export default function PermissionsPage() {
 
             {/* List All Resources */}
             {loadingResources || loadingPermissions ? (
-                <div>Loading...</div>
+                <div className="flex flex-col items-center justify-center py-10 gap-2">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Loading data...</p>
+                </div>
             ) : (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {resources.map(r => {

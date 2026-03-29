@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Check, X } from "lucide-react";
+import { AlertCircle, Check, Loader2, RefreshCcw, X } from "lucide-react";
 
 type Role = { id: string; name: string };
 type User = {
@@ -152,9 +152,33 @@ export default function UsersPage() {
       />
 
       {usersLoading ? (
-        <div>Loading users...</div>
+        <div className="flex flex-col items-center justify-center py-10 gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading users...</p>
+        </div>
       ) : usersError ? (
-        <div className="text-red-500">Failed to load users.</div>
+        <div className="flex flex-col items-center justify-center py-10 gap-3 border rounded-lg bg-red-50">
+          <AlertCircle className="h-8 w-8 text-red-500" />
+
+          <div className="text-center">
+            <p className="text-red-600 font-medium">
+              Failed to load users
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Something went wrong. Please try again.
+            </p>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => qc.invalidateQueries({ queryKey: ["users"] })}
+            className="flex items-center gap-2"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Retry
+          </Button>
+        </div>
       ) : filteredUsers.length === 0 ? (
         <div>No users found.</div>
       ) : (
@@ -229,9 +253,28 @@ export default function UsersPage() {
           </DialogHeader>
 
           {rolesLoading ? (
-            <div>Loading roles...</div>
+            <div className="flex flex-col items-center justify-center py-10 gap-2">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Loading roles...</p>
+            </div>
           ) : rolesError ? (
-            <div className="text-red-500">Failed to load roles.</div>
+            <div className="flex flex-col items-center justify-center py-6 gap-3">
+              <AlertCircle className="h-6 w-6 text-red-500" />
+
+              <p className="text-red-600 text-sm font-medium">
+                Failed to load roles
+              </p>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => qc.invalidateQueries({ queryKey: ["roles"] })}
+                className="flex items-center gap-2"
+              >
+                <RefreshCcw className="h-4 w-4" />
+                Retry
+              </Button>
+            </div>
           ) : (
             <div className="space-y-3">
               {roles.map((r: Role) => {
