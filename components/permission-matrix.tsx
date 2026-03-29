@@ -1,8 +1,8 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Checkbox } from "./ui/checkbox";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type Permission = {
   id: string;
@@ -10,79 +10,55 @@ type Permission = {
   action: "READ" | "CREATE" | "UPDATE" | "DELETE";
 };
 
-type RoleWithPermissions = {
-  id: string;
-  name: string;
-  permissions: Permission[];
-};
-
-const actions = ["READ", "CREATE", "UPDATE", "DELETE"];
+const ACTION_ORDER = ["READ", "CREATE", "UPDATE", "DELETE"];
 
 export default function PermissionMatrix({ roleId }: { roleId: string }) {
-  const { data: permissions } = useQuery({
-    queryKey: ["permissions"],
-    queryFn: async () => (await api.get("/permissions")).data,
+  const { data } = useQuery({
+    queryKey: ["role-permissions", roleId],
+    queryFn: async () => (await api.get(`/roles/${roleId}`)).data,
   });
 
-  const { data: role } = useQuery<RoleWithPermissions>({
-    queryKey: ["role", roleId],
-    queryFn: async () =>
-      (await api.get(`/roles/${roleId}`)).data,
-  });
+  const permissions: Permission[] = data?.permissions || [];
 
-  const rolePermissions: Permission[] = role?.permissions || [];
-
-  const mutation = useMutation({
-    mutationFn: (payload: any) =>
-      api.post(`/roles/${roleId}`, payload),
-  });
-
-  const isChecked = (permId: string) =>
-    rolePermissions.some((p) => p.id === permId);
-
-  const resources = [...new Set(permissions?.map((p: any) => p.resource))];
+  // 🔥 group by resource
+  const grouped = permissions.reduce((acc: any, perm) => {
+    if (!acc[perm.resource]) acc[perm.resource] = [];
+    acc[perm.resource].push(perm);
+    return acc;
+  }, {});
 
   return (
-    <div className="rounded-xl border p-4">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b">
-            <th className="text-left p-2">Resource</th>
-            {actions.map((a) => (
-              <th key={a} className="p-2">
-                {a}
-              </th>
-            ))}
-          </tr>
-        </thead>
+    <div className="space-y-6">
+      {Object.entries(grouped).map(([resource, perms]: any) => {
+        const sorted = perms.sort(
+          (a: Permission, b: Permission) =>
+            ACTION_ORDER.indexOf(a.action) -
+            ACTION_ORDER.indexOf(b.action)
+        );
 
-        <tbody>
-          {resources.map((resource: any) => (
-            <tr key={resource} className="border-b">
-              <td className="p-2 font-medium">{resource}</td>
+        return (
+          <div
+            key={resource}
+            className="border rounded-xl p-4 bg-background shadow-sm"
+          >
+            <h3 className="font-semibold capitalize mb-3 text-lg">
+              {resource}
+            </h3>
 
-              {actions.map((action) => {
-                const perm = permissions.find(
-                  (p: any) => p.resource === resource && p.action === action
-                );
-
-                if (!perm) return <td key={action} />;
-
-                return (
-                  <td key={action} className="text-center">
-                    <Checkbox
-                      checked={isChecked(perm.id)}
-                      onCheckedChange={() =>
-                        mutation.mutate({ permissionId: perm.id })
-                      }
-                    />
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+            <div className="grid grid-cols-4 gap-4">
+              {sorted.map((p: Permission) => (
+                <label
+                  key={p.id}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <Checkbox checked />
+                  {p.action}
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

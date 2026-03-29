@@ -1,3 +1,4 @@
+// C:\Users\HP\OneDrive\Desktop\rajdeo\base_app\base_app_frontend\app\dashboard\layout.tsx
 "use client";
 
 import Link from "next/link";
@@ -7,6 +8,7 @@ import {
     ShieldCheck,
     Key,
     LayoutDashboard,
+    Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +32,7 @@ const navItems = [
         name: "Permissions",
         href: "/dashboard/permissions",
         icon: Key,
-    },
+    }
 ];
 
 export default function DashboardLayout({
