@@ -9,7 +9,6 @@ import { Loader2 } from "lucide-react";
 export default function DashboardPage() {
     const router = useRouter();
 
-    // Always call hooks
     const { data: sessionData, isLoading: sessionLoading } = useQuery({
         queryKey: ["session"],
         queryFn: async () => (await authApi.get("/auth/get-session")).data,
@@ -18,57 +17,72 @@ export default function DashboardPage() {
     const { data: users = [] } = useQuery({
         queryKey: ["users"],
         queryFn: async () => (await api.get("/users")).data,
-        enabled: !!sessionData, // only fetch when session exists
+        enabled: !!sessionData?.session,
     });
 
     const { data: roles = [] } = useQuery({
         queryKey: ["roles"],
         queryFn: async () => (await api.get("/roles")).data,
-        enabled: !!sessionData,
+        enabled: !!sessionData?.session,
     });
 
     const { data: resources = [] } = useQuery({
         queryKey: ["resources"],
         queryFn: async () => (await api.get("/resources")).data,
-        enabled: !!sessionData,
+        enabled: !!sessionData?.session,
     });
 
     const { data: permissions = [] } = useQuery({
         queryKey: ["permissions"],
-        queryFn: async () => (await api.get("/permissions")).data?.data,
-        enabled: !!sessionData,
+        queryFn: async () =>
+            (await api.get("/permissions")).data?.data || [],
+        enabled: !!sessionData?.session,
     });
 
-    // Redirect if not logged in
     if (!sessionLoading && !sessionData?.session) {
-        router.push("/"); // redirect to login
+        router.replace("/");
         return null;
     }
 
-    if (sessionLoading) return (<div className="flex flex-col items-center justify-center py-10 gap-2">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Loading session...</p>
-    </div>);
+    if (sessionLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen gap-3 bg-background">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">
+                    Loading session...
+                </p>
+            </div>
+        );
+    }
 
     return (
-        <div className="p-6 space-y-6">
-            <h1 className="text-2xl font-bold">Dashboard</h1>
-
-            <div className="grid grid-cols-3 gap-4">
-                <Card title="Users" value={users.length} />
-                <Card title="Roles" value={roles.length} />
-                <Card title="Permissions" value={permissions.length} />
-                <Card title="Resources" value={resources.length} />
+        <div className="min-h-screen bg-background text-foreground p-6 space-y-6">
+            {/* 📊 Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <StatCard title="Users" value={users.length} />
+                <StatCard title="Roles" value={roles.length} />
+                <StatCard title="Permissions" value={permissions.length} />
+                <StatCard title="Resources" value={resources.length} />
             </div>
         </div>
     );
 }
 
-function Card({ title, value }: any) {
+// ✅ Dark mode friendly card
+function StatCard({ title, value }: { title: string; value: number }) {
     return (
-        <div className="border rounded-xl p-4">
-            <div className="text-sm text-muted-foreground">{title}</div>
-            <div className="text-2xl font-bold">{value}</div>
+        <div className="
+            rounded-xl border border-border 
+            bg-card text-card-foreground 
+            p-4 shadow-sm 
+            transition-all hover:shadow-md
+        ">
+            <div className="text-sm text-muted-foreground">
+                {title}
+            </div>
+            <div className="text-2xl font-bold">
+                {value}
+            </div>
         </div>
     );
 }
