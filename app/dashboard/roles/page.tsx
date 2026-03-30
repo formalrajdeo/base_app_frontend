@@ -186,7 +186,7 @@ export default function RolesPage() {
                             const isResourceAssigned = resourcePermissions.some((p: any) => p.assigned);
 
                             return (
-                                <Card key={res.id} className="bg-gray-50 dark:bg-gray-800">
+                                <Card key={res.id} className="">
                                     <CardContent className="space-y-3">
                                         {/* Resource Toggle */}
                                         <div className="flex justify-between items-center">

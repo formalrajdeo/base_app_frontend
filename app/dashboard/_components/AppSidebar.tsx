@@ -26,13 +26,11 @@ import {
     Command,
 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-
 const items = [
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
     { title: "Users", url: "/dashboard/users", icon: Users },
     { title: "Roles", url: "/dashboard/roles", icon: ShieldCheck },
-    { title: "Permissions", url: "/dashboard/permissions", icon: Key },
+    { title: "Resource + Permissions", url: "/dashboard/permissions", icon: Key },
 ];
 
 export function AppSidebar() {

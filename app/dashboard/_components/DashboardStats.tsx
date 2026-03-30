@@ -7,23 +7,23 @@ import { Loader2 } from "lucide-react";
 export function DashboardStats() {
     const usersQuery = useSuspenseQuery({
         queryKey: ["users"],
-        queryFn: async () => (await api.get("/users")).data,
+        queryFn: async () => (await api.get("/users")).data || [],
     });
 
     const rolesQuery = useSuspenseQuery({
         queryKey: ["roles"],
-        queryFn: async () => (await api.get("/roles")).data,
+        queryFn: async () => (await api.get("/roles")).data || [],
     });
 
     const permissionsQuery = useSuspenseQuery({
         queryKey: ["permissions"],
         queryFn: async () =>
-            (await api.get("/permissions")).data?.data || [],
+            (await api.get("/permissions")).data.data || [],
     });
 
     const resourcesQuery = useSuspenseQuery({
         queryKey: ["resources"],
-        queryFn: async () => (await api.get("/resources")).data,
+        queryFn: async () => (await api.get("/resources"))?.data || [],
     });
 
     return (

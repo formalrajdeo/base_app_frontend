@@ -62,7 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                     variant="destructive"
                                     onClick={() => logout.mutate()}
                                     disabled={logout.isPending}
-                                    className="flex items-center gap-2"
+                                    className="flex items-center gap-2 cursor-pointer"
                                 >
                                     {logout.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                                     {logout.isPending ? "Logging out..." : "Logout"}

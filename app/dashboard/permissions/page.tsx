@@ -25,14 +25,12 @@ const createPermissionSchema = z.object({
 const assignPermissionSchema = z.object({
     resource: z.string().min(1, "Select a resource"),
     action: z.enum(ACTIONS),
-    description: z.string().min(5, "Description is required").max(200, "Description is too long"),
 });
 
 interface Permission {
     id: string;
     resource: string;
     action: Action;
-    description: string;
 }
 
 interface Resource {
@@ -100,7 +98,7 @@ export default function PermissionsPage() {
 
     const assignAction = useMutation({
         mutationFn: async () => {
-            const parsed = assignPermissionSchema.parse({ resource: selectedResourceName, action: selectedAction, description: `${selectedAction} access to ${selectedResourceName}` });
+            const parsed = assignPermissionSchema.parse({ resource: selectedResourceName, action: selectedAction });
             return api.post("/permissions", parsed);
         },
         onSuccess: () => {
@@ -152,7 +150,7 @@ export default function PermissionsPage() {
 
     return (
         <div className="p-6 space-y-6 bg-background text-foreground dark:bg-background dark:text-foreground min-h-screen">
-            <h1 className="text-2xl font-bold">Permissions</h1>
+            <h1 className="text-2xl font-bold">Manage Permissions + Resources</h1>
 
             {/* Create New Resource + Action */}
             <Card className="bg-card dark:bg-card/80 border border-border dark:border-border/70">

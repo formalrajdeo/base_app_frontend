@@ -53,7 +53,7 @@ export default function UsersPage() {
   // 🔹 Fetch roles
   const { data: roles = [], isLoading: rolesLoading, error: rolesError } = useQuery({
     queryKey: ["roles"],
-    queryFn: async () => (await api.get("/roles")).data,
+    queryFn: async () => (await api.get("/roles")).data || [],
   });
 
   // 🔹 Assign/remove role
@@ -96,7 +96,7 @@ export default function UsersPage() {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
-        <Button size="sm" onClick={() => openModal(row.original)} variant="outline">
+        <Button className="cursor-pointer" size="sm" onClick={() => openModal(row.original)} variant="outline">
           View/Edit Roles
         </Button>
       ),
