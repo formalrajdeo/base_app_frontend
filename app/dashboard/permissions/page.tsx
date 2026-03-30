@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, Trash2 } from "lucide-react";
 import { z } from "zod";
+import { getErrorMessage } from "@/utils/errors";
 
 type Action = "READ" | "CREATE" | "UPDATE" | "DELETE";
 const ACTIONS: Action[] = ["READ", "CREATE", "UPDATE", "DELETE"];
@@ -18,17 +19,20 @@ const ACTIONS: Action[] = ["READ", "CREATE", "UPDATE", "DELETE"];
 const createPermissionSchema = z.object({
     resource: z.string().min(1, "Resource name is required"),
     action: z.enum(ACTIONS),
+    description: z.string().min(5, "Description is required").max(200, "Description is too long"),
 });
 
 const assignPermissionSchema = z.object({
     resource: z.string().min(1, "Select a resource"),
     action: z.enum(ACTIONS),
+    description: z.string().min(5, "Description is required").max(200, "Description is too long"),
 });
 
 interface Permission {
     id: string;
     resource: string;
     action: Action;
+    description: string;
 }
 
 interface Resource {
@@ -42,6 +46,7 @@ export default function PermissionsPage() {
 
     // States
     const [newResourceName, setNewResourceName] = useState("");
+    const [newResourceDescription, setNewResourceDescription] = useState("");
     const [newResourceAction, setNewResourceAction] = useState<Action>("READ");
     const [selectedResourceName, setSelectedResourceName] = useState("");
     const [selectedAction, setSelectedAction] = useState<Action>("READ");
@@ -77,25 +82,25 @@ export default function PermissionsPage() {
     // Mutations
     const createResourcePermission = useMutation({
         mutationFn: async () => {
-            const parsed = createPermissionSchema.parse({ resource: newResourceName, action: newResourceAction });
+            const parsed = createPermissionSchema.parse({ resource: newResourceName, action: newResourceAction, description: newResourceDescription });
             return api.post("/permissions", parsed);
         },
         onSuccess: () => {
             toast.success("Permission created");
             setNewResourceName("");
+            setNewResourceDescription("");
             setNewResourceAction("READ");
             queryClient.invalidateQueries({ queryKey: ["permissions"] });
             queryClient.invalidateQueries({ queryKey: ["resources"] });
         },
-        onError: (err: any) => {
-            const message = err?.response?.data?.message || err?.message || "Failed to create permission";
-            toast.error(message);
-        },
+        onError: (err: unknown) => {
+            toast.error(getErrorMessage(err));
+        }
     });
 
     const assignAction = useMutation({
         mutationFn: async () => {
-            const parsed = assignPermissionSchema.parse({ resource: selectedResourceName, action: selectedAction });
+            const parsed = assignPermissionSchema.parse({ resource: selectedResourceName, action: selectedAction, description: `${selectedAction} access to ${selectedResourceName}` });
             return api.post("/permissions", parsed);
         },
         onSuccess: () => {
@@ -104,9 +109,8 @@ export default function PermissionsPage() {
             setSelectedAction("READ");
             queryClient.invalidateQueries({ queryKey: ["permissions"] });
         },
-        onError: (err: any) => {
-            const message = err?.response?.data?.message || err?.message || "Failed to assign action";
-            toast.error(message);
+        onError: (err: unknown) => {
+            toast.error(getErrorMessage(err));
         },
     });
 
@@ -118,9 +122,8 @@ export default function PermissionsPage() {
             setInlineActions(prev => ({ ...prev, [resource]: "" }));
             queryClient.invalidateQueries({ queryKey: ["permissions"] });
         },
-        onError: (err: any) => {
-            const message = err?.response?.data?.message || err?.message || "Failed to add action";
-            toast.error(message);
+        onError: (err: unknown) => {
+            toast.error(getErrorMessage(err));
         },
     });
 
@@ -130,9 +133,8 @@ export default function PermissionsPage() {
             toast.success("Permission deleted");
             queryClient.invalidateQueries({ queryKey: ["permissions"] });
         },
-        onError: (err: any) => {
-            const message = err?.response?.data?.message || err?.message || "Failed to delete permission";
-            toast.error(message);
+        onError: (err: unknown) => {
+            toast.error(getErrorMessage(err));
         },
     });
 
@@ -143,9 +145,8 @@ export default function PermissionsPage() {
             queryClient.invalidateQueries({ queryKey: ["resources"] });
             queryClient.invalidateQueries({ queryKey: ["permissions"] });
         },
-        onError: (err: any) => {
-            const message = err?.response?.data?.message || err?.message || "Failed to delete resource";
-            toast.error(message);
+        onError: (err: unknown) => {
+            toast.error(getErrorMessage(err));
         },
     });
 
@@ -163,6 +164,12 @@ export default function PermissionsPage() {
                         onChange={e => setNewResourceName(e.target.value)}
                         className="bg-input dark:bg-input/80 text-foreground dark:text-foreground"
                     />
+                    <Input
+                        placeholder="Resource description"
+                        value={newResourceDescription}
+                        onChange={e => setNewResourceDescription(e.target.value)}
+                        className="bg-input dark:bg-input/80 text-foreground dark:text-foreground"
+                    />
                     <select
                         className="border rounded px-3 py-2 bg-input dark:bg-input/80 text-foreground dark:text-foreground border-border dark:border-border/70 appearance-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
                         value={newResourceAction}
@@ -178,7 +185,7 @@ export default function PermissionsPage() {
                             </option>
                         ))}
                     </select>
-                    <Button onClick={() => createResourcePermission.mutate()} disabled={!newResourceName}>
+                    <Button onClick={() => createResourcePermission.mutate()} disabled={!newResourceName || !newResourceDescription}>
                         Create
                     </Button>
                 </CardContent>
