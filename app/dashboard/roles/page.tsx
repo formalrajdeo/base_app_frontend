@@ -8,16 +8,20 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Pencil } from "lucide-react"; // <- Lucide edit icon
+import { Pencil, Trash } from "lucide-react";
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
-    DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
+    DialogDescription,
+    DialogFooter,
 } from "@/components/ui/dialog";
+import { z } from "zod";
+
+export const createRoleSchema = z.object({
+    name: z.string().min(3, "Role name must be at least 3 characters"),
+});
 
 export default function RolesPage() {
     const queryClient = useQueryClient();
@@ -54,36 +58,36 @@ export default function RolesPage() {
 
     const deleteRole = useMutation({
         mutationFn: async (roleId: string) => api.delete(`/roles/${roleId}`),
-        onSuccess: () => {
+        onSuccess: (_data, roleId) => {
             toast.success("Role deleted");
-            setSelectedRoleId(null);
+            if (selectedRoleId === roleId) setSelectedRoleId(null);
             queryClient.invalidateQueries({ queryKey: ["roles"] });
         },
     });
 
     const togglePermission = useMutation({
         mutationFn: async ({ permissionId, assigned }: any) => {
-            if (assigned) {
-                return api.delete(`/roles/${selectedRoleId}/permissions/${permissionId}`);
-            } else {
-                return api.post(`/roles/${selectedRoleId}/permissions/${permissionId}`);
-            }
+            if (!selectedRoleId) return;
+            return assigned
+                ? api.delete(`/roles/${selectedRoleId}/permissions/${permissionId}`)
+                : api.post(`/roles/${selectedRoleId}/permissions/${permissionId}`);
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["role", selectedRoleId] });
+            if (selectedRoleId)
+                queryClient.invalidateQueries({ queryKey: ["role", selectedRoleId] });
         },
     });
 
     const toggleResource = useMutation({
         mutationFn: async ({ resourceId, assigned }: any) => {
-            if (assigned) {
-                return api.delete(`/roles/${selectedRoleId}/resources/${resourceId}`);
-            } else {
-                return api.post(`/roles/${selectedRoleId}/resources/${resourceId}`);
-            }
+            if (!selectedRoleId) return;
+            return assigned
+                ? api.delete(`/roles/${selectedRoleId}/resources/${resourceId}`)
+                : api.post(`/roles/${selectedRoleId}/resources/${resourceId}`);
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["role", selectedRoleId] });
+            if (selectedRoleId)
+                queryClient.invalidateQueries({ queryKey: ["role", selectedRoleId] });
         },
     });
 
@@ -96,136 +100,143 @@ export default function RolesPage() {
             queryClient.invalidateQueries({ queryKey: ["role", selectedRoleId] });
             setOpenRenameDialog(false);
         },
-        onError: (err: any) => {
-            toast.error(err.message || "Failed to rename role");
-        },
+        onError: (err: any) => toast.error(err.message || "Failed to rename role"),
     });
 
     return (
-        <div className="flex h-full">
+        <div className="flex h-full text-gray-900 dark:text-gray-100">
             {/* LEFT PANEL */}
-            <div className="w-80 border-r p-4 space-y-4">
+            <div className="w-80 border-r border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-4 overflow-y-auto">
                 <Input
                     placeholder="New role..."
                     value={newRole}
                     onChange={(e) => setNewRole(e.target.value)}
                 />
-                <Button onClick={() => createRole.mutate()} className="w-full">
+                <Button
+                    className="w-full"
+                    onClick={() => {
+                        try {
+                            // Validate with Zod before calling API
+                            createRoleSchema.parse({ name: newRole });
+                            createRole.mutate();
+                        } catch (err: any) {
+                            toast.error(err.errors?.[0]?.message || "Invalid role name");
+                        }
+                    }}
+                >
                     Create Role
                 </Button>
 
-                {roles.map((r: any) => (
-                    <Card
-                        key={r.id}
-                        onClick={() => setSelectedRoleId(r.id)}
-                        className={`cursor-pointer ${selectedRoleId === r.id ? "border-primary" : ""
-                            }`}
-                    >
-                        <CardContent className="p-3 flex justify-between items-center">
-                            {r.name}
-                            <div className="flex gap-2">
-                                {/* ✏️ Lucide edit icon */}
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setRenameRoleName(r.name);
-                                        setSelectedRoleId(r.id);
-                                        setOpenRenameDialog(true);
-                                    }}
-                                >
-                                    <Pencil className="w-4 h-4" />
-                                </Button>
-
-                                <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        deleteRole.mutate(r.id);
-                                    }}
-                                >
-                                    Delete
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
+                <div className="flex flex-col gap-2">
+                    {roles.map((r: any) => (
+                        <Card
+                            key={r.id}
+                            className={`cursor-pointer ${selectedRoleId === r.id ? "border-primary" : ""
+                                }`}
+                            onClick={() => setSelectedRoleId(r.id)}
+                        >
+                            <CardContent className="flex justify-between items-center p-3">
+                                <span>{r.name}</span>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedRoleId(r.id);
+                                            setRenameRoleName(r.name);
+                                            setOpenRenameDialog(true);
+                                        }}
+                                    >
+                                        <Pencil className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            deleteRole.mutate(r.id);
+                                        }}
+                                    >
+                                        <Trash className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
             </div>
 
             {/* RIGHT PANEL */}
-            <div className="flex-1 p-6">
+            <div className="flex-1 p-6 overflow-y-auto space-y-6">
                 {!selectedRole ? (
-                    <div>Select a role</div>
+                    <div className="text-gray-500 dark:text-gray-400">Select a role</div>
                 ) : (
                     <>
-                        <h2 className="text-xl font-bold mb-6">{selectedRole.name}</h2>
+                        <h2 className="text-2xl font-bold">{selectedRole.name}</h2>
 
-                        <div className="space-y-6">
-                            {resources.map((res: any) => {
-                                const resourcePermissions = res.permissions.map((p: any) => {
-                                    const assignedPerm = selectedRole.permissions.find(
-                                        (rp: any) => rp.id === p.id
-                                    );
-                                    return { ...p, assigned: assignedPerm?.assigned || false };
-                                });
-
-                                const isAssigned = resourcePermissions.some((p: any) => p.assigned);
-
-                                return (
-                                    <Card key={res.id}>
-                                        <CardContent className="p-4 space-y-3">
-                                            {/* RESOURCE TOGGLE */}
-                                            <div className="flex items-center justify-between">
-                                                <h3 className="font-semibold">{res.name}</h3>
-                                                <Checkbox
-                                                    checked={isAssigned}
-                                                    onCheckedChange={() =>
-                                                        toggleResource.mutate({
-                                                            resourceId: res.id,
-                                                            assigned: !isAssigned,
-                                                        })
-                                                    }
-                                                />
-                                            </div>
-
-                                            {/* INDIVIDUAL PERMISSIONS */}
-                                            <div className="flex gap-4 flex-wrap">
-                                                {resourcePermissions.map((p: any) => (
-                                                    <label
-                                                        key={p.id}
-                                                        className="flex items-center gap-2 border px-3 py-1 rounded"
-                                                    >
-                                                        <Checkbox
-                                                            checked={p.assigned}
-                                                            onCheckedChange={() =>
-                                                                togglePermission.mutate({
-                                                                    permissionId: p.id,
-                                                                    assigned: !p.assigned,
-                                                                })
-                                                            }
-                                                        />
-                                                        {p.action}
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </CardContent>
-                                    </Card>
+                        {resources.map((res: any) => {
+                            const resourcePermissions = res.permissions.map((p: any) => {
+                                const assignedPerm = selectedRole.permissions.find(
+                                    (rp: any) => rp.id === p.id
                                 );
-                            })}
-                        </div>
+                                return { ...p, assigned: assignedPerm?.assigned || false };
+                            });
+
+                            const isResourceAssigned = resourcePermissions.some((p: any) => p.assigned);
+
+                            return (
+                                <Card key={res.id} className="bg-gray-50 dark:bg-gray-800">
+                                    <CardContent className="space-y-3">
+                                        {/* Resource Toggle */}
+                                        <div className="flex justify-between items-center">
+                                            <h3 className="font-semibold">{res.name}</h3>
+                                            <Checkbox
+                                                checked={isResourceAssigned}
+                                                onCheckedChange={() =>
+                                                    toggleResource.mutate({
+                                                        resourceId: res.id,
+                                                        assigned: isResourceAssigned,
+                                                    })
+                                                }
+                                            />
+                                        </div>
+
+                                        {/* Permissions */}
+                                        <div className="flex flex-wrap gap-2">
+                                            {resourcePermissions.map((p: any) => (
+                                                <label
+                                                    key={p.id}
+                                                    className="flex items-center gap-2 border border-gray-300 dark:border-gray-700 rounded px-3 py-1"
+                                                >
+                                                    <Checkbox
+                                                        checked={p.assigned}
+                                                        onCheckedChange={() =>
+                                                            togglePermission.mutate({
+                                                                permissionId: p.id,
+                                                                assigned: p.assigned,
+                                                            })
+                                                        }
+                                                    />
+                                                    {p.action}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
                     </>
                 )}
             </div>
 
-            {/* RENAME ROLE DIALOG */}
+            {/* Rename Role Dialog */}
             <Dialog open={openRenameDialog} onOpenChange={setOpenRenameDialog}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Rename Role</DialogTitle>
                         <DialogDescription>
-                            Enter a new name for the role. This will update the role's name across the system.
+                            Enter a new name for the role. This will update the role across the system.
                         </DialogDescription>
                     </DialogHeader>
                     <Input
@@ -234,10 +245,7 @@ export default function RolesPage() {
                         className="mb-4"
                     />
                     <DialogFooter className="flex justify-end gap-2">
-                        <Button
-                            variant="outline"
-                            onClick={() => setOpenRenameDialog(false)}
-                        >
+                        <Button variant="outline" onClick={() => setOpenRenameDialog(false)}>
                             Cancel
                         </Button>
                         <Button
