@@ -14,7 +14,7 @@ export function proxy(req: NextRequest) {
         return NextResponse.redirect(new URL("/", req.url));
     }
 
-    // ✅ Logged in → block public pages (login)
+    // Logged in → block public pages (login)
     if (token && publicRoutes.includes(pathname)) {
         return NextResponse.redirect(new URL("/dashboard", req.url));
     }

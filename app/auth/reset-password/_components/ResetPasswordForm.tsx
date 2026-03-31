@@ -48,17 +48,22 @@ export default function ResetPasswordFormComponent() {
           throw new Error("Failed to change password")
         }
 
+        // LOGOUT AFTER PASSWORD RESET
+        await authApi.post("/auth/sign-out")
+
         toast.success("Password reset successful", {
           description: "Redirecting to login...",
         })
-        setTimeout(() => router.push("/auth/login"), 1000)
+
+        // setTimeout(() => router.push("/auth/login"), 1000)
+        router.replace("/auth/login")
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to reset password"
         toast.error(message)
       } finally {
         setIsSubmitting(false)
       }
-    },
+    }
   })
 
   if (!token || error) {

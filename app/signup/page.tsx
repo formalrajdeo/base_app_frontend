@@ -55,7 +55,7 @@ export default function SignupPage() {
         }
     };
 
-    const isLoading = signup.status === "pending"; // ✅ TypeScript-safe
+    const isLoading = signup.status === "pending"; // TypeScript-safe
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">

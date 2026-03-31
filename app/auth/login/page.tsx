@@ -10,8 +10,8 @@ import { useRouter } from "next/navigation"
 import { EmailVerification } from "./_components/email-verification"
 import { ForgotPassword } from "./_components/forgot-password"
 import { SocialAuthButtons } from "./_components/social-auth-buttons"
-import { authApi } from "@/lib/auth-api"
 import { useSession } from "@/hooks/useSession"
+import { Loader2 } from "lucide-react"
 
 type Tab = "signin" | "signup" | "email-verification" | "forgot-password"
 
@@ -20,91 +20,87 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [selectedTab, setSelectedTab] = useState<Tab>("signin")
 
-  const { data: sessionData, isLoading } = useSession();
+  const { data: sessionData, isLoading } = useSession()
 
-  // Redirect if not logged in
+  // Redirect logged-in users
   useEffect(() => {
-    if (!isLoading && !sessionData?.session) {
-      router.replace("/auth/login");
+    if (!isLoading && sessionData?.session) {
+      router.replace("/") // or your dashboard route
     }
-  }, [isLoading, sessionData, router]);
+  }, [isLoading, sessionData, router])
 
   function openEmailVerificationTab(email: string) {
     setEmail(email)
     setSelectedTab("email-verification")
   }
 
+  // Show nothing while loading the session to avoid flash
+  if (isLoading || sessionData?.session) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    )
+  }
+
   return (
-    <div className="">
-      <div className="max-w-4xl mx-auto my-6 px-4">
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="px-4 w-lg">
         <Tabs
           value={selectedTab}
           onValueChange={t => setSelectedTab(t as Tab)}
-          className="max-auto w-full my-6 px-4"
+          className="w-full"
         >
           {(selectedTab === "signin" || selectedTab === "signup") && (
             <TabsList>
-              <TabsTrigger value="signin" className="cursor-pointer">
-                Sign In
-              </TabsTrigger>
-              <TabsTrigger value="signup" className="cursor-pointer">
-                Sign Up
-              </TabsTrigger>
+              <TabsTrigger value="signin" className="cursor-pointer">Sign In</TabsTrigger>
+              <TabsTrigger value="signup" className="cursor-pointer">Sign Up</TabsTrigger>
             </TabsList>
           )}
+
+          {/* Sign In Tab */}
           <TabsContent value="signin">
             <Card>
-              <CardHeader className="text-2xl font-bold">
-                <CardTitle>Sign In</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-2xl font-bold">Sign In</CardTitle></CardHeader>
               <CardContent>
                 <SignInTab
                   openEmailVerificationTab={openEmailVerificationTab}
                   openForgotPassword={() => setSelectedTab("forgot-password")}
                 />
               </CardContent>
-
               <Separator />
-
               <CardFooter className="grid grid-cols-1 gap-3">
                 <SocialAuthButtons />
               </CardFooter>
             </Card>
           </TabsContent>
 
+          {/* Sign Up Tab */}
           <TabsContent value="signup">
             <Card>
-              <CardHeader className="text-2xl font-bold">
-                <CardTitle>Sign Up</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-2xl font-bold">Sign Up</CardTitle></CardHeader>
               <CardContent>
                 <SignUpTab openEmailVerificationTab={openEmailVerificationTab} />
               </CardContent>
-
               <Separator />
-
               <CardFooter className="grid grid-cols-1 gap-3">
                 <SocialAuthButtons />
               </CardFooter>
             </Card>
           </TabsContent>
 
+          {/* Email Verification Tab */}
           <TabsContent value="email-verification">
             <Card>
-              <CardHeader className="text-2xl font-bold">
-                <CardTitle>Verify Your Email</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <EmailVerification email={email} />
-              </CardContent>
+              <CardHeader><CardTitle className="text-2xl font-bold">Verify Your Email</CardTitle></CardHeader>
+              <CardContent><EmailVerification email={email} /></CardContent>
             </Card>
           </TabsContent>
 
+          {/* Forgot Password Tab */}
           <TabsContent value="forgot-password">
             <Card>
-              <CardHeader className="text-2xl font-bold">
-                <CardTitle>Forgot Password</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-2xl font-bold">Forgot Password</CardTitle></CardHeader>
               <CardContent>
                 <ForgotPassword openSignInTab={() => setSelectedTab("signin")} />
               </CardContent>
@@ -113,6 +109,5 @@ export default function LoginPage() {
         </Tabs>
       </div>
     </div>
-
   )
 }

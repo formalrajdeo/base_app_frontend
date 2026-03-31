@@ -13,7 +13,7 @@ export default async function TwoFactorPage() {
 
   const { data: session } = await authApi
     .get("/auth/get-session", {
-      headers: Object.fromEntries(nextHeaders.entries()), // ✅ FIX
+      headers: Object.fromEntries(nextHeaders.entries()), // FIX
     })
     .catch(() => ({ data: { session: null } }))
 

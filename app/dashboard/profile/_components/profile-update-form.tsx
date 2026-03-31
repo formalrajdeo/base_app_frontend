@@ -18,7 +18,7 @@ import { authApi } from "@/lib/auth-api"
 
 const profileUpdateSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  email: z.string().email("Invalid email").min(1),
+  email: z.email("Invalid email").min(1),
 })
 
 type ProfileUpdateForm = z.infer<typeof profileUpdateSchema>

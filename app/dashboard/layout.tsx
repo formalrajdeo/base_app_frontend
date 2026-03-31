@@ -28,12 +28,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         },
     });
 
-    // Redirect if not logged in
+    // Redirect based on authentication
     useEffect(() => {
-        if (!isLoading && !sessionData?.session) {
-            router.replace("/");
+        if (!isLoading) {
+            if (!sessionData?.session) {
+                // User is not logged in -> redirect to login page
+                router.replace("/auth/login")
+            }
         }
-    }, [isLoading, sessionData, router]);
+    }, [isLoading, sessionData, router])
 
     if (isLoading || !sessionData?.session) {
         return <DashboardLayoutSkeleton />;

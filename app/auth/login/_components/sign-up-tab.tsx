@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { authApi } from "@/lib/auth-api"
 import { getErrorMessage } from "@/utils/errors"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
+import { Card } from "@/components/ui/card"
 
 /* ---------------- Zod Schema ---------------- */
 const signupSchema = z.object({

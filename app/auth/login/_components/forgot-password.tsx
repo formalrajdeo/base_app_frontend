@@ -5,31 +5,23 @@ import { useMutation } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
+import { authApi } from "@/lib/auth-api"
 
 export function ForgotPassword({ openSignInTab }: { openSignInTab: () => void }) {
   const [email, setEmail] = useState("")
 
   const resetPasswordMutation = useMutation({
     mutationFn: async (email: string) => {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/request-password-reset`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email,
-            redirectTo: `${process.env.NEXT_PUBLIC_FRONTEND_BASE_URL}/auth/reset-password`,
-          }),
-        }
-      )
+      const { data: requestPasswordResetRes } = await authApi.post("/auth/request-password-reset", {
+        email: email,
+        redirectTo: `${process.env.NEXT_PUBLIC_FRONTEND_BASE_URL}/auth/reset-password`,
+      })
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}))
-        throw new Error(errorData?.message || "Failed to send password reset email")
+      if (!requestPasswordResetRes.status) {
+        return { error: { message: "Failed to send reset email" } }
       }
+      toast.success("Password reset email sent")
 
-      return res.json()
     },
     onSuccess: () => {
       toast.success("Password reset email sent ✅")
