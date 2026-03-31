@@ -6,21 +6,23 @@ export const authApi = axios.create({
     withCredentials: true,
 });
 
-authApi.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-        if (error.response?.status === 403) {
-            toast.error("You don't have permission to access this resource.");
+// authApi.interceptors.response.use(
+//     (response) => response,
+//     async (error) => {
+//         const status = error.response?.status;
+//         const url = error.config?.url || "";
 
-            // Optional: logout API call
-            try {
-                await authApi.post("/auth/sign-out", { callbackURL: "/login" }, { withCredentials: true });
-            } catch { }
+//         if (status === 403) {
 
-            // Force redirect
-            window.location.href = "/?error=unauthorized";
-        }
+//             toast.error("You don't have permission to access this resource.");
 
-        return Promise.reject(error);
-    }
-);
+//             try {
+//                 await authApi.post("/auth/sign-out", { callbackURL: "/login" }, { withCredentials: true });
+//             } catch { }
+
+//             window.location.href = `${process.env.NEXT_PUBLIC_FRONTEND_BASE_URL}/?error=unauthorized`;
+//         }
+
+//         return Promise.reject(error);
+//     }
+// );

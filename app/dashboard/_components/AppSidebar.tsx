@@ -22,7 +22,6 @@ import {
     ShieldCheck,
     Key,
     User,
-    LogOut,
     Command,
 } from "lucide-react";
 
@@ -84,15 +83,10 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton tooltip="Profile">
-                            <User />
-                            <span>Profile</span>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-
-                    <SidebarMenuItem>
-                        <SidebarMenuButton tooltip="Logout">
-                            <LogOut />
-                            <span>Logout</span>
+                            <Link href="/dashboard/profile" className="flex items-center gap-2 w-full">
+                                <User />
+                                <span>Profile</span>
+                            </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>

@@ -13,7 +13,7 @@ import { ModeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { DashboardLayoutSkeleton } from "./_components/Skeletons/DashboardLayoutSkeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Loader2 } from "lucide-react";
+import { Loader2, LogOut } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
@@ -65,7 +65,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                     className="flex items-center gap-2 cursor-pointer"
                                 >
                                     {logout.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                                    {logout.isPending ? "Logging out..." : "Logout"}
+                                    {logout.isPending ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Logging out...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <LogOut className="h-4 w-4" />
+                                            Logout
+                                        </>
+                                    )}
                                 </Button>
                             </div>
                         </header>
