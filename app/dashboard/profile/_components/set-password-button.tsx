@@ -1,12 +1,12 @@
 "use client"
 
-import { BetterAuthActionButton } from "@/components/auth/better-auth-action-button"
-import { authClient } from "@/lib/auth/auth-client"
+import { Button } from "@/components/ui/button"
+import { authApi } from "@/lib/auth-api"
 import { toast } from "sonner"
 
 export function SetPasswordButton({ email }: { email: string }) {
   async function requestPasswordReset() {
-    const { data: requestPasswordResetRes } = await authClient.requestPasswordReset({
+    const { data: requestPasswordResetRes } = await authApi.post("/auth/request-password-reset", {
       email: email,
       redirectTo: `${process.env.NEXT_PUBLIC_FRONTEND_BASE_URL}/auth/reset-password`,
     })
@@ -20,12 +20,11 @@ export function SetPasswordButton({ email }: { email: string }) {
   }
 
   return (
-    <BetterAuthActionButton
-      action={requestPasswordReset}
-      successMessage="Password reset email sent"
+    <Button
+      onClick={requestPasswordReset}
       variant="outline"
     >
       Send Password Reset Email
-    </BetterAuthActionButton>
+    </Button>
   )
 }

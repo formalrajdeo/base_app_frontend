@@ -1,183 +1,221 @@
 "use client"
 
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import z from "zod"
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
-import { Button } from "@/components/ui/button"
-import { LoadingSwap } from "@/components/ui/loading-swap"
-import { authClient } from "@/lib/auth/auth-client"
+import * as React from "react"
+import { useForm } from "@tanstack/react-form"
+import { z } from "zod"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
-import { PasswordInput } from "@/components/ui/password-input"
-import { useState } from "react"
-import { Input } from "@/components/ui/input"
 import QRCode from "react-qr-code"
 
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
+
+import { authApi } from "@/lib/auth-api"
+
 const twoFactorAuthSchema = z.object({
-  password: z.string().min(1),
+  password: z.string().min(1, "Password is required"),
+})
+
+const qrSchema = z.object({
+  token: z.string().length(6, "Code must be 6 digits"),
 })
 
 type TwoFactorAuthForm = z.infer<typeof twoFactorAuthSchema>
+type QrForm = z.infer<typeof qrSchema>
+
 type TwoFactorData = {
   totpURI: string
   backupCodes: string[]
 }
 
 export function TwoFactorAuth({ isEnabled }: { isEnabled: boolean }) {
-  const [twoFactorData, setTwoFactorData] = useState<TwoFactorData | null>(null)
+  const [twoFactorData, setTwoFactorData] =
+    React.useState<TwoFactorData | null>(null)
+
   const router = useRouter()
-  const form = useForm<TwoFactorAuthForm>({
-    resolver: zodResolver(twoFactorAuthSchema),
-    defaultValues: { password: "" },
+
+  const form = useForm({
+    defaultValues: {
+      password: "",
+    } as TwoFactorAuthForm,
+
+    validators: {
+      onSubmit: twoFactorAuthSchema,
+    },
+
+    onSubmit: async ({ value }) => {
+      try {
+        if (isEnabled) {
+          // Disable 2FA
+          const { data } = await authApi.post(
+            "/auth/two-factor/disable",
+            {
+              password: value.password,
+            }
+          )
+
+          if (!data?.status) {
+            throw new Error("Failed to disable 2FA")
+          }
+
+          toast.success("Disabled 2FA successfully")
+          router.refresh()
+          form.reset()
+        } else {
+          // Enable 2FA
+          const { data } = await authApi.post(
+            "/auth/two-factor/enable",
+            {
+              password: value.password,
+            }
+          )
+
+          if (!data?.totpURI) {
+            throw new Error("Invalid password")
+          }
+
+          setTwoFactorData(data)
+          toast.success("Password matched successfully")
+          form.reset()
+        }
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "Something went wrong"
+        toast.error(message)
+      }
+    },
   })
 
-  const { isSubmitting } = form.formState
-
-  async function handleDisableTwoFactorAuth(
-    data: TwoFactorAuthForm,
-  ): Promise<{ error: { message?: string } | null }> {
-    try {
-      const { data: twoFactorDisableRes } = await authClient.twoFactor.disable({
-        password: data.password,
-      })
-      if (!twoFactorDisableRes.status) {
-        return { error: { message: "Failed to disable 2FA" } }
-      }
-      toast.success("Disabled 2FA successfully")
-      router.refresh()
-      form.reset()
-      return { error: null }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to disable 2FA"
-
-      toast.error(message)
-      return { error: { message } }
-    }
-  }
-
-  async function handleEnableTwoFactorAuth(
-    data: TwoFactorAuthForm,
-  ): Promise<{ error: { message?: string } | null }> {
-    try {
-      const { data: twoFactorEnableRes } = await authClient.twoFactor.enable({
-        password: data.password,
-      })
-
-      if (!twoFactorEnableRes?.totpURI) {
-        toast.error("Invalid password")
-        return { error: { message: "Failed to enable 2FA" } }
-      }
-
-      setTwoFactorData(twoFactorEnableRes) // { totpURI, backupCodes }
-      form.reset()
-
-      toast.success("Password matched successfully")
-      return { error: null }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to enable 2FA"
-      toast.error(message)
-      return { error: { message } }
-    }
-  }
-
-  if (twoFactorData != null) {
+  if (twoFactorData) {
     return (
       <QRCodeVerify
         {...twoFactorData}
-        onDone={() => {
-          setTwoFactorData(null)
-        }}
+        onDone={() => setTwoFactorData(null)}
       />
     )
   }
 
   return (
-    <Form {...form}>
-      <form
-        className="space-y-4"
-        onSubmit={form.handleSubmit(
-          isEnabled ? handleDisableTwoFactorAuth : handleEnableTwoFactorAuth,
-        )}
-      >
-        <FormField
-          control={form.control}
+    <form
+      className="space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault()
+        form.handleSubmit()
+      }}
+    >
+      <FieldGroup>
+        <form.Field
           name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Password</FormLabel>
-              <FormControl>
-                <PasswordInput {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          children={(field) => {
+            const isInvalid =
+              field.state.meta.isTouched &&
+              !field.state.meta.isValid
 
-        <Button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full"
-          variant={isEnabled ? "destructive" : "default"}
-        >
-          <LoadingSwap isLoading={isSubmitting}>
+            return (
+              <Field data-invalid={isInvalid}>
+                <FieldLabel htmlFor={field.name}>
+                  Password
+                </FieldLabel>
+
+                <Input
+                  id={field.name}
+                  name={field.name}
+                  type="password"
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) =>
+                    field.handleChange(e.target.value)
+                  }
+                  aria-invalid={isInvalid}
+                />
+
+                {isInvalid && (
+                  <FieldError errors={field.state.meta.errors} />
+                )}
+              </Field>
+            )
+          }}
+        />
+      </FieldGroup>
+
+      <form.Subscribe
+        selector={(state) => ({
+          isSubmitting: state.isSubmitting,
+        })}
+      >
+        {({ isSubmitting }) => (
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full"
+            variant={isEnabled ? "destructive" : "default"}
+          >
             {isEnabled ? "Disable 2FA" : "Enable 2FA"}
-          </LoadingSwap>
-        </Button>
-      </form>
-    </Form>
+          </Button>
+        )}
+      </form.Subscribe>
+    </form>
   )
 }
 
-const qrSchema = z.object({
-  token: z.string().length(6),
-})
+/* ---------------- QR VERIFY ---------------- */
 
-type QrForm = z.infer<typeof qrSchema>
+function QRCodeVerify({
+  totpURI,
+  backupCodes,
+  onDone,
+}: TwoFactorData & { onDone: () => void }) {
+  const [successfullyEnabled, setSuccessfullyEnabled] =
+    React.useState(false)
 
-function QRCodeVerify({ totpURI, backupCodes, onDone }: TwoFactorData & { onDone: () => void }) {
-  const [successfullyEnabled, setSuccessfullyEnabled] = useState(false)
   const router = useRouter()
-  const form = useForm<QrForm>({
-    resolver: zodResolver(qrSchema),
-    defaultValues: { token: "" },
-  })
 
-  const { isSubmitting } = form.formState
+  const form = useForm({
+    defaultValues: {
+      token: "",
+    } as QrForm,
 
-  async function handleQrCode(data: QrForm): Promise<{ error: { message?: string } | null }> {
-    try {
-      const { data: verifyTotpRes } = await authClient.twoFactor.verifyTotp({
-        code: data.token,
-      })
-      if (!verifyTotpRes?.user?.id) {
-        toast.error("Invalid verify code")
-        return { error: { message: "Invalid verify code" } }
+    validators: {
+      onSubmit: qrSchema,
+    },
+
+    onSubmit: async ({ value }) => {
+      try {
+        const { data } = await authApi.post(
+          "/auth/two-factor/verify-totp",
+          {
+            code: value.token,
+          }
+        )
+
+        if (!data?.user?.id) {
+          throw new Error("Invalid verify code")
+        }
+
+        toast.success("Code verified successfully.")
+        setSuccessfullyEnabled(true)
+        router.refresh()
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "Failed to verify code"
+        toast.error(message)
       }
-      toast.success("Code verified successfully.")
-      setSuccessfullyEnabled(true)
-      router.refresh()
-      return { error: null }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to verify code"
-      toast.error(message)
-      return { error: { message } }
-    }
-  }
+    },
+  })
 
   if (successfullyEnabled) {
     return (
       <>
         <p className="text-sm text-muted-foreground mb-2">
-          Save these backup codes in a safe place. You can use them to access your account.
+          Save these backup codes in a safe place.
         </p>
+
         <div className="grid grid-cols-2 gap-2 mb-4">
           {backupCodes.map((code, index) => (
             <div key={index} className="font-mono text-sm">
@@ -185,6 +223,7 @@ function QRCodeVerify({ totpURI, backupCodes, onDone }: TwoFactorData & { onDone
             </div>
           ))}
         </div>
+
         <Button variant="outline" onClick={onDone}>
           Done
         </Button>
@@ -195,30 +234,67 @@ function QRCodeVerify({ totpURI, backupCodes, onDone }: TwoFactorData & { onDone
   return (
     <div className="space-y-4">
       <p className="text-muted-foreground">
-        Scan this QR code with your authenticator app and enter the code below:
+        Scan this QR code and enter the code below:
       </p>
 
-      <Form {...form}>
-        <form className="space-y-4" onSubmit={form.handleSubmit(handleQrCode)}>
-          <FormField
-            control={form.control}
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault()
+          form.handleSubmit()
+        }}
+      >
+        <FieldGroup>
+          <form.Field
             name="token"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Code</FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            children={(field) => {
+              const isInvalid =
+                field.state.meta.isTouched &&
+                !field.state.meta.isValid
 
-          <Button type="submit" disabled={isSubmitting} className="w-full">
-            <LoadingSwap isLoading={isSubmitting}>Submit Code</LoadingSwap>
-          </Button>
-        </form>
-      </Form>
+              return (
+                <Field data-invalid={isInvalid}>
+                  <FieldLabel htmlFor={field.name}>
+                    Code
+                  </FieldLabel>
+
+                  <Input
+                    id={field.name}
+                    name={field.name}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(e) =>
+                      field.handleChange(e.target.value)
+                    }
+                    aria-invalid={isInvalid}
+                  />
+
+                  {isInvalid && (
+                    <FieldError errors={field.state.meta.errors} />
+                  )}
+                </Field>
+              )
+            }}
+          />
+        </FieldGroup>
+
+        <form.Subscribe
+          selector={(state) => ({
+            isSubmitting: state.isSubmitting,
+          })}
+        >
+          {({ isSubmitting }) => (
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full"
+            >
+              {isSubmitting ? "Verifying..." : "Submit Code"}
+            </Button>
+          )}
+        </form.Subscribe>
+      </form>
+
       <div className="p-4 bg-white w-fit">
         <QRCode size={256} value={totpURI} />
       </div>

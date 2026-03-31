@@ -1,27 +1,24 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import z from "zod"
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { LoadingSwap } from "@/components/ui/loading-swap"
-import { authClient } from "@/lib/auth/auth-client"
+import * as React from "react"
+import { useForm } from "@tanstack/react-form"
+import { z } from "zod"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
+
+import { authApi } from "@/lib/auth-api"
 
 const profileUpdateSchema = z.object({
-  name: z.string().min(1),
-  email: z.email().min(1),
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Invalid email").min(1),
 })
 
 type ProfileUpdateForm = z.infer<typeof profileUpdateSchema>
@@ -35,89 +32,133 @@ export function ProfileUpdateForm({
   }
 }) {
   const router = useRouter()
-  const form = useForm<ProfileUpdateForm>({
-    resolver: zodResolver(profileUpdateSchema),
-    defaultValues: user,
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
+
+  const form = useForm({
+    defaultValues: {
+      name: user.name,
+      email: user.email,
+    } as ProfileUpdateForm,
+    validators: {
+      onSubmit: profileUpdateSchema,
+    },
+    onSubmit: async ({ value }) => {
+      setIsSubmitting(true);
+
+      try {
+        // Create an array to hold promises
+        const promises: Promise<any>[] = [];
+
+        // Always update name
+        const updateUserPromise = authApi.post("/auth/update-user", {
+          name: value.name,
+        });
+        promises.push(updateUserPromise);
+
+        // Conditionally update email
+        let emailPromise: Promise<any> | null = null;
+        if (value.email !== user.email) {
+          emailPromise = authApi.post("/auth/change-email", {
+            newEmail: value.email,
+            callbackURL: `${process.env.NEXT_PUBLIC_FRONTEND_BASE_URL}/dashboard/profile`,
+          });
+          promises.push(emailPromise);
+        }
+
+        // Wait for all API calls concurrently
+        const results = await Promise.all(promises);
+        const updateUserResult = results[0];
+        const emailResult = emailPromise ? results[1] : null;
+
+        // Handle name update errors
+        if (updateUserResult?.error) {
+          toast.error(updateUserResult.error.message || "Failed to update profile");
+          return;
+        }
+
+        // Handle email update errors
+        if (emailResult?.error) {
+          toast.error(emailResult.error.message || "Failed to change email");
+          return;
+        }
+
+        // Success notifications
+        if (emailPromise) {
+          toast.success("Verify your new email address to complete the change.");
+        } else {
+          toast.success("Profile updated successfully");
+        }
+
+        router.refresh();
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Something went wrong";
+        toast.error(message);
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
   })
 
-  const { isSubmitting } = form.formState
-
-  async function handleProfileUpdate(data: ProfileUpdateForm) {
-    const promises: Promise<any>[] = []
-
-    // 1) Always update user name
-    const updateUserPromise = authClient.updateUser({ name: data.name })
-    promises.push(updateUserPromise)
-
-    // 2) Conditionally add email change
-    let emailPromise: Promise<any> | null = null
-    if (data.email !== user.email) {
-      emailPromise = authClient.changeEmail({
-        newEmail: data.email,
-        callbackURL: `${process.env.NEXT_PUBLIC_FRONTEND_BASE_URL}/profile`,
-      })
-      promises.push(emailPromise)
-    }
-
-    // 3) Await results
-    const [updateUserResult, emailResult] = await Promise.all(promises)
-
-    // 4) Handle errors
-    if (updateUserResult?.error) {
-      toast.error(updateUserResult.error.message || "Failed to update profile")
-      return
-    }
-
-    if (emailPromise && emailResult?.error) {
-      toast.error(emailResult.error.message || "Failed to change email")
-      return
-    }
-
-    // 5) Success
-    if (emailPromise) {
-      toast.success("Verify your new email address to complete the change.")
-    } else {
-      toast.success("Profile updated successfully")
-    }
-
-    router.refresh()
-  }
-
   return (
-    <Form {...form}>
-      <form className="space-y-4" onSubmit={form.handleSubmit(handleProfileUpdate)}>
-        <FormField
-          control={form.control}
+    <form
+      className="space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault()
+        form.handleSubmit()
+      }}
+    >
+      <FieldGroup>
+        <form.Field
           name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Name</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+          children={(field) => {
+            const isInvalid =
+              field.state.meta.isTouched && !field.state.meta.isValid
+
+            return (
+              <Field data-invalid={isInvalid}>
+                <FieldLabel htmlFor={field.name}>Name</FieldLabel>
+                <Input
+                  id={field.name}
+                  name={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  aria-invalid={isInvalid}
+                />
+                {isInvalid && <FieldError errors={field.state.meta.errors} />}
+              </Field>
+            )
+          }}
         />
 
-        <FormField
-          control={form.control}
+        <form.Field
           name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input type="email" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          children={(field) => {
+            const isInvalid =
+              field.state.meta.isTouched && !field.state.meta.isValid
 
-        <Button type="submit" disabled={isSubmitting} className="w-full">
-          <LoadingSwap isLoading={isSubmitting}>Update Profile</LoadingSwap>
-        </Button>
-      </form>
-    </Form>
+            return (
+              <Field data-invalid={isInvalid}>
+                <FieldLabel htmlFor={field.name}>Email</FieldLabel>
+                <Input
+                  id={field.name}
+                  name={field.name}
+                  type="email"
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  aria-invalid={isInvalid}
+                />
+                {isInvalid && <FieldError errors={field.state.meta.errors} />}
+              </Field>
+            )
+          }}
+        />
+      </FieldGroup>
+
+      <Button type="submit" disabled={isSubmitting} className="w-full">
+        {isSubmitting ? "Updating..." : "Update Profile"}
+      </Button>
+    </form>
   )
 }

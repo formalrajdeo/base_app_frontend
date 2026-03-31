@@ -8,14 +8,14 @@ import Image from "next/image"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { ReactNode, Suspense } from "react"
-// import { ProfileUpdateForm } from "./_components/profile-update-form"
-// import { SetPasswordButton } from "./_components/set-password-button"
+import { SetPasswordButton } from "./_components/set-password-button"
 import { ChangePasswordForm } from "./_components/change-password-form"
 import { SessionManagement } from "./_components/session-management"
-// import { AccountLinking } from "./_components/account-linking"
+import { AccountLinking } from "./_components/account-linking"
 import { AccountDeletion } from "./_components/account-deletion"
-// import { TwoFactorAuth } from "./_components/two-factor-auth"
+import { TwoFactorAuth } from "./_components/two-factor-auth"
 import { unstable_noStore } from "next/cache"
+import { ProfileUpdateForm } from "./_components/profile-update-form"
 
 export interface Account {
   id: string
@@ -48,7 +48,6 @@ export default async function ProfilePage() {
     .then(res => res.data)
     .catch(() => null);
 
-  console.log({ sessionData })
   if (!sessionData?.session) {
     return redirect(`${process.env.NEXT_PUBLIC_FRONTEND_BASE_URL}`);
   }
@@ -77,7 +76,7 @@ export default async function ProfilePage() {
           <div className="flex-1">
             <div className="flex gap-1 justify-between items-start">
               <h1 className="text-3xl font-bold">{sessionData.user.name || "User Profile"}</h1>
-              {/* <Badge>{sessionData.user.role}</Badge> */}role hai todo
+              <Badge>{sessionData.user.role}</Badge>
             </div>
             <p className="text-muted-foreground">{sessionData.user.email}</p>
           </div>
@@ -111,8 +110,7 @@ export default async function ProfilePage() {
         <TabsContent value="profile">
           <Card>
             <CardContent>
-              ProfileUpdateForm
-              {/* <ProfileUpdateForm user={sessionData.user} /> */}
+              <ProfileUpdateForm user={sessionData.user} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -121,8 +119,7 @@ export default async function ProfilePage() {
           <LoadingSuspense>
             <SecurityTab
               email={sessionData.user.email}
-              // isTwoFactorEnabled={sessionData.user.twoFactorEnabled ?? false}
-              isTwoFactorEnabled={false}
+              isTwoFactorEnabled={sessionData.user.twoFactorEnabled ?? false}
             />
           </LoadingSuspense>
         </TabsContent>
@@ -173,8 +170,7 @@ async function LinkedAccountsTab() {
   return (
     <Card>
       <CardContent>
-        AccountLinking
-        {/* <AccountLinking currentAccounts={nonCredentialAccounts} /> */}
+        <AccountLinking currentAccounts={nonCredentialAccounts} />
       </CardContent>
     </Card>
   )
@@ -251,8 +247,7 @@ async function SecurityTab({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            SetPasswordButton
-            {/* <SetPasswordButton email={email} /> */}
+            <SetPasswordButton email={email} />
           </CardContent>
         </Card>
       )}
@@ -265,8 +260,7 @@ async function SecurityTab({
             </Badge>
           </CardHeader>
           <CardContent>
-            TwoFactorAuth
-            {/* <TwoFactorAuth isEnabled={isTwoFactorEnabled} /> */}
+            <TwoFactorAuth isEnabled={isTwoFactorEnabled} />
           </CardContent>
         </Card>
       )}
