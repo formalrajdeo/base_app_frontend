@@ -12,8 +12,8 @@ import { Loader2, Trash2 } from "lucide-react";
 import { z } from "zod";
 import { getErrorMessage } from "@/utils/errors";
 
-type Action = "READ" | "CREATE" | "UPDATE" | "DELETE";
-const ACTIONS: Action[] = ["READ", "CREATE", "UPDATE", "DELETE"];
+type Action = "read" | "create" | "update" | "delete";
+const ACTIONS: Action[] = ["read", "create", "update", "delete"];
 
 // Zod Schemas
 const createPermissionSchema = z.object({
@@ -45,9 +45,9 @@ export default function PermissionsPage() {
     // States
     const [newResourceName, setNewResourceName] = useState("");
     const [newResourceDescription, setNewResourceDescription] = useState("");
-    const [newResourceAction, setNewResourceAction] = useState<Action>("READ");
+    const [newResourceAction, setNewResourceAction] = useState<Action>("read");
     const [selectedResourceName, setSelectedResourceName] = useState("");
-    const [selectedAction, setSelectedAction] = useState<Action>("READ");
+    const [selectedAction, setSelectedAction] = useState<Action>("read");
     const [inlineActions, setInlineActions] = useState<Record<string, string>>({});
 
     // Fetch Permissions
@@ -87,7 +87,7 @@ export default function PermissionsPage() {
             toast.success("Permission created");
             setNewResourceName("");
             setNewResourceDescription("");
-            setNewResourceAction("READ");
+            setNewResourceAction("read");
             queryClient.invalidateQueries({ queryKey: ["permissions"] });
             queryClient.invalidateQueries({ queryKey: ["resources"] });
         },
@@ -104,7 +104,7 @@ export default function PermissionsPage() {
         onSuccess: () => {
             toast.success("Action assigned");
             setSelectedResourceName("");
-            setSelectedAction("READ");
+            setSelectedAction("read");
             queryClient.invalidateQueries({ queryKey: ["permissions"] });
         },
         onError: (err: unknown) => {

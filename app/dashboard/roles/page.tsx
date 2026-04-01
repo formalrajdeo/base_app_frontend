@@ -131,7 +131,7 @@ export default function RolesPage() {
                     {roles.map((r: any) => (
                         <Card
                             key={r.id}
-                            className={`cursor-pointer ${selectedRoleId === r.id ? "border-primary" : ""
+                            className={`cursor-pointer ${selectedRoleId === r.id ? "border border-primary" : ""
                                 }`}
                             onClick={() => setSelectedRoleId(r.id)}
                         >
