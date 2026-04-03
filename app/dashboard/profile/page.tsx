@@ -55,10 +55,6 @@ export default async function ProfilePage() {
   return (
     <div className="max-w-4xl mx-auto my-6 px-4">
       <div className="mb-8">
-        <Link href="/" className="inline-flex items-center mb-6">
-          <ArrowLeft className="size-4 mr-2" />
-          Back to Home
-        </Link>
         <div className="flex items-center space-x-4">
           <div className="size-16 bg-muted rounded-full flex items-center justify-center overflow-hidden">
             {sessionData.user.image ? (

@@ -1,29 +1,31 @@
-// import { ImpersonationIndicator } from "@/components/auth/impersonation-indicator"
-// import ProductPrivate from "./_components/product-private"
-// import ProductPublic from "./_components/product-public"
-// import { authClient } from "@/lib/auth/auth-client"
-// import { Button } from "@repo/ui/button"
-// import { headers } from "next/headers"
-// import { redirect } from "next/navigation"
+// app/page.tsx
+import FeaturesSection from "@/components/landing-page/FeaturesSection";
+import HeroSection from "@/components/landing-page/HeroSection";
+import HowItWorksSection from "@/components/landing-page/HowItWorksSection";
+import { LandingHeader } from "@/components/landing-page/LandingHeader";
+import PricingSection from "@/components/landing-page/PricingSection";
+import TestimonialsSection from "@/components/landing-page/TestimonialsSection";
+import { Metadata } from "next";
 
-import Link from "next/link";
+export const metadata: Metadata = {
+  title: "SaaSPro - Modern Auth for Developers",
+  description: "Secure, scalable, and easy-to-integrate authentication for your apps.",
+  openGraph: {
+    title: "SaaSPro - Modern Auth for Developers",
+    description: "Secure, scalable, and easy-to-integrate authentication for your apps.",
+    url: "https://yourdomain.com",
+  },
+};
 
-export default async function Home() {
-  // Get current session
-  // const { data: sessionData } = await authClient.getSession({
-  //   fetchOptions: { headers: await headers() },
-  // })
-  // if (!sessionData?.user) return redirect("/auth/login")
-  // const isAuthenticated = Boolean(sessionData?.user?.id)
-
+export default async function LandingPage() {
   return (
-    <div className="">
-      Welcome bro to our app login here!
-      <Link href="/auth/login" className="text-blue-500 underline">
-        Go to Login
-      </Link>
-      {/* <ImpersonationIndicator /> */}
-      {/* <Button appName="web">Open alert</Button> */}
+    <div className="bg-background text-foreground">
+      <LandingHeader />
+      <HeroSection />
+      <FeaturesSection />
+      <HowItWorksSection />
+      <TestimonialsSection />
+      <PricingSection />
     </div>
-  )
+  );
 }

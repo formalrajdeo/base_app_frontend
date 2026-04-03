@@ -1,27 +1,26 @@
 import axios from "axios";
 import { toast } from "sonner";
-import { authApi } from "./auth-api";
 
 export const api = axios.create({
   baseURL: "http://localhost:8000/api/v1",
   withCredentials: true,
 });
 
-// api.interceptors.response.use(
-//   (response) => response,
-//   async (error) => {
-//     if (error.response?.status === 403) {
-//       toast.error("You don't have permission to access this resource.");
+api.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    const status = error.response?.status;
 
-//       // Optional: logout API call
-//       try {
-//         await authApi.post("/auth/sign-out", { callbackURL: "/login" }, { withCredentials: true });
-//       } catch { }
+    if (status === 401) {
+      // Not logged in
+      window.location.href = "/auth/login";
+    }
 
-//       // Force redirect
-//       window.location.href = "/?error=unauthorized";
-//     }
+    if (status === 403) {
+      // Logged in but not allowed
+      toast.error("You are not authorized to perform this action 🚫");
+    }
 
-//     return Promise.reject(error);
-//   }
-// );
+    return Promise.reject(error);
+  }
+);

@@ -8,7 +8,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Pencil, Trash } from "lucide-react";
+import {
+    Pencil,
+    Trash,
+    Lock,
+    Loader2,
+    AlertCircle,
+} from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -19,76 +25,102 @@ import {
 } from "@/components/ui/dialog";
 import { z } from "zod";
 
+// ---------------- SCHEMA ----------------
 export const createRoleSchema = z.object({
     name: z.string().min(3, "Role name must be at least 3 characters"),
 });
 
 export default function RolesPage() {
-    const queryClient = useQueryClient();
+    const qc = useQueryClient();
 
+    // ---------------- STATE ----------------
     const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
     const [newRole, setNewRole] = useState("");
     const [renameRoleName, setRenameRoleName] = useState("");
     const [openRenameDialog, setOpenRenameDialog] = useState(false);
 
-    const { data: roles = [] } = useQuery({
+    // ---------------- QUERIES ----------------
+    const rolesQuery = useQuery({
         queryKey: ["roles"],
-        queryFn: async () => (await api.get("/roles")).data,
+        queryFn: async () => {
+            try {
+                const res = await api.get("/roles");
+                return res.data;
+            } catch (err: any) {
+                if (err.response?.status === 403) return null;
+                throw err;
+            }
+        },
     });
 
-    const { data: selectedRole } = useQuery({
+    const selectedRoleQuery = useQuery({
         queryKey: ["role", selectedRoleId],
         enabled: !!selectedRoleId,
-        queryFn: async () => (await api.get(`/roles/${selectedRoleId}`)).data,
+        queryFn: async () => {
+            try {
+                const res = await api.get(`/roles/${selectedRoleId}`);
+                return res.data;
+            } catch (err: any) {
+                if (err.response?.status === 403) return null;
+                throw err;
+            }
+        },
     });
 
-    const { data: resources = [] } = useQuery({
+    const resourcesQuery = useQuery({
         queryKey: ["resources"],
-        queryFn: async () => (await api.get("/resources/with-permissions")).data,
+        queryFn: async () => {
+            try {
+                const res = await api.get("/resources/with-permissions");
+                return res.data;
+            } catch (err: any) {
+                if (err.response?.status === 403) return null;
+                throw err;
+            }
+        },
     });
 
+    const { data: roles, isLoading: rolesLoading, error: rolesError } = rolesQuery;
+    const { data: selectedRole, isLoading: roleLoading } = selectedRoleQuery;
+    const { data: resources, isLoading: resourcesLoading } = resourcesQuery;
+
+    // ---------------- MUTATIONS ----------------
     const createRole = useMutation({
         mutationFn: async () => api.post("/roles", { name: newRole }),
         onSuccess: () => {
             toast.success("Role created");
             setNewRole("");
-            queryClient.invalidateQueries({ queryKey: ["roles"] });
+            qc.invalidateQueries({ queryKey: ["roles"] });
         },
     });
 
     const deleteRole = useMutation({
-        mutationFn: async (roleId: string) => api.delete(`/roles/${roleId}`),
-        onSuccess: (_data, roleId) => {
+        mutationFn: async (id: string) => api.delete(`/roles/${id}`),
+        onSuccess: (_data, id) => {
             toast.success("Role deleted");
-            if (selectedRoleId === roleId) setSelectedRoleId(null);
-            queryClient.invalidateQueries({ queryKey: ["roles"] });
+            if (selectedRoleId === id) setSelectedRoleId(null);
+            qc.invalidateQueries({ queryKey: ["roles"] });
         },
     });
 
     const togglePermission = useMutation({
         mutationFn: async ({ permissionId, assigned }: any) => {
-            if (!selectedRoleId) return;
             return assigned
                 ? api.delete(`/roles/${selectedRoleId}/permissions/${permissionId}`)
                 : api.post(`/roles/${selectedRoleId}/permissions/${permissionId}`);
         },
-        onSuccess: () => {
-            if (selectedRoleId)
-                queryClient.invalidateQueries({ queryKey: ["role", selectedRoleId] });
-        },
+        onSuccess: () =>
+            qc.invalidateQueries({ queryKey: ["role", selectedRoleId] }),
     });
 
     const toggleResource = useMutation({
         mutationFn: async ({ resourceId, assigned }: any) => {
-            if (!selectedRoleId) return;
             return assigned
                 ? api.delete(`/roles/${selectedRoleId}/resources/${resourceId}`)
                 : api.post(`/roles/${selectedRoleId}/resources/${resourceId}`);
         },
-        onSuccess: () => {
-            if (selectedRoleId)
-                queryClient.invalidateQueries({ queryKey: ["role", selectedRoleId] });
-        },
+        onSuccess: () =>
+            qc.invalidateQueries({ queryKey: ["role", selectedRoleId] }),
     });
 
     const renameRole = useMutation({
@@ -96,99 +128,137 @@ export default function RolesPage() {
             api.patch(`/roles/${selectedRoleId}`, { name: renameRoleName }),
         onSuccess: () => {
             toast.success("Role renamed");
-            queryClient.invalidateQueries({ queryKey: ["roles"] });
-            queryClient.invalidateQueries({ queryKey: ["role", selectedRoleId] });
+            qc.invalidateQueries({ queryKey: ["roles"] });
+            qc.invalidateQueries({ queryKey: ["role", selectedRoleId] });
             setOpenRenameDialog(false);
         },
-        onError: (err: any) => toast.error(err.message || "Failed to rename role"),
     });
 
+    // ---------------- UI STATES ----------------
+    if (roles === null) {
+        return (
+            <Center>
+                <Lock />
+                <p>No access to roles</p>
+            </Center>
+        );
+    }
+
+    if (rolesLoading) {
+        return (
+            <Center>
+                <Loader2 className="animate-spin" />
+            </Center>
+        );
+    }
+
+    if (rolesError) {
+        return (
+            <Center>
+                <AlertCircle />
+                <p>Error loading roles</p>
+            </Center>
+        );
+    }
+
+    // ---------------- UI ----------------
     return (
-        <div className="flex h-full text-gray-900 dark:text-gray-100">
+        <div className="flex h-full">
+
             {/* LEFT PANEL */}
-            <div className="w-80 border-r border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-4 overflow-y-auto">
+            <div className="w-80 border-r p-4 space-y-4">
                 <Input
                     placeholder="New role..."
                     value={newRole}
                     onChange={(e) => setNewRole(e.target.value)}
                 />
+
                 <Button
-                    className="w-full"
                     onClick={() => {
                         try {
-                            // Validate with Zod before calling API
                             createRoleSchema.parse({ name: newRole });
                             createRole.mutate();
                         } catch (err: any) {
-                            toast.error(err.errors?.[0]?.message || "Invalid role name");
+                            toast.error(err.errors?.[0]?.message);
                         }
                     }}
                 >
                     Create Role
                 </Button>
 
-                <div className="flex flex-col gap-2">
-                    {roles.map((r: any) => (
-                        <Card
-                            key={r.id}
-                            className={`cursor-pointer ${selectedRoleId === r.id ? "border border-primary" : ""
-                                }`}
-                            onClick={() => setSelectedRoleId(r.id)}
-                        >
-                            <CardContent className="flex justify-between items-center p-3">
-                                <span>{r.name}</span>
-                                <div className="flex gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSelectedRoleId(r.id);
-                                            setRenameRoleName(r.name);
-                                            setOpenRenameDialog(true);
-                                        }}
-                                    >
-                                        <Pencil className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            deleteRole.mutate(r.id);
-                                        }}
-                                    >
-                                        <Trash className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
+                {(roles ?? []).map((r: any) => (
+                    <Card
+                        key={r.id}
+                        onClick={() => setSelectedRoleId(r.id)}
+                        className={`cursor-pointer ${selectedRoleId === r.id ? "border border-primary" : ""
+                            }`}
+                    >
+                        <CardContent className="flex justify-between">
+                            {r.name}
+
+                            <div className="flex gap-2">
+                                <Button
+                                    size="sm"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedRoleId(r.id);
+                                        setRenameRoleName(r.name);
+                                        setOpenRenameDialog(true);
+                                    }}
+                                >
+                                    <Pencil size={16} />
+                                </Button>
+
+                                <Button
+                                    size="sm"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        deleteRole.mutate(r.id);
+                                    }}
+                                >
+                                    <Trash size={16} />
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
             </div>
 
             {/* RIGHT PANEL */}
-            <div className="flex-1 p-6 overflow-y-auto space-y-6">
-                {!selectedRole ? (
-                    <div className="text-gray-500 dark:text-gray-400">Select a role</div>
+            <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+                {!selectedRoleId ? (
+                    <p>Select a role</p>
+                ) : roleLoading || resourcesLoading ? (
+                    <Center>
+                        <Loader2 className="animate-spin" />
+                    </Center>
+                ) : selectedRole === null ? (
+                    <p className="text-yellow-600">No permission</p>
                 ) : (
                     <>
                         <h2 className="text-2xl font-bold">{selectedRole.name}</h2>
 
-                        {resources.map((res: any) => {
-                            const resourcePermissions = res.permissions.map((p: any) => {
-                                const assignedPerm = selectedRole.permissions.find(
+                        {(resources ?? []).map((res: any) => {
+                            const resourcePermissions = (res.permissions ?? []).map((p: any) => {
+                                const assignedPerm = selectedRole.permissions?.find(
                                     (rp: any) => rp.id === p.id
                                 );
-                                return { ...p, assigned: assignedPerm?.assigned || false };
+
+                                return {
+                                    ...p,
+                                    assigned: assignedPerm?.assigned || false,
+                                };
                             });
 
-                            const isResourceAssigned = resourcePermissions.some((p: any) => p.assigned);
+                            const isResourceAssigned = resourcePermissions.some(
+                                (p: any) => p.assigned
+                            );
 
                             return (
-                                <Card key={res.id} className="">
+                                <Card key={res.id}>
                                     <CardContent className="space-y-3">
-                                        {/* Resource Toggle */}
+
+                                        {/* RESOURCE */}
                                         <div className="flex justify-between items-center">
                                             <h3 className="font-semibold">{res.name}</h3>
                                             <Checkbox
@@ -202,12 +272,12 @@ export default function RolesPage() {
                                             />
                                         </div>
 
-                                        {/* Permissions */}
+                                        {/* PERMISSIONS */}
                                         <div className="flex flex-wrap gap-2">
                                             {resourcePermissions.map((p: any) => (
                                                 <label
                                                     key={p.id}
-                                                    className="flex items-center gap-2 border border-gray-300 dark:border-gray-700 rounded px-3 py-1"
+                                                    className="flex items-center gap-2 border rounded px-3 py-1"
                                                 >
                                                     <Checkbox
                                                         checked={p.assigned}
@@ -222,6 +292,7 @@ export default function RolesPage() {
                                                 </label>
                                             ))}
                                         </div>
+
                                     </CardContent>
                                 </Card>
                             );
@@ -230,33 +301,34 @@ export default function RolesPage() {
                 )}
             </div>
 
-            {/* Rename Role Dialog */}
+            {/* RENAME MODAL */}
             <Dialog open={openRenameDialog} onOpenChange={setOpenRenameDialog}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Rename Role</DialogTitle>
-                        <DialogDescription>
-                            Enter a new name for the role. This will update the role across the system.
-                        </DialogDescription>
+                        <DialogDescription>Update role name</DialogDescription>
                     </DialogHeader>
+
                     <Input
                         value={renameRoleName}
                         onChange={(e) => setRenameRoleName(e.target.value)}
-                        className="mb-4"
                     />
-                    <DialogFooter className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setOpenRenameDialog(false)}>
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={() => renameRole.mutate()}
-                            disabled={!renameRoleName.trim()}
-                        >
-                            Rename
-                        </Button>
+
+                    <DialogFooter>
+                        <Button onClick={() => setOpenRenameDialog(false)}>Cancel</Button>
+                        <Button onClick={() => renameRole.mutate()}>Rename</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+        </div>
+    );
+}
+
+// ---------------- CENTER ----------------
+function Center({ children }: { children: React.ReactNode }) {
+    return (
+        <div className="flex items-center justify-center h-full flex-col gap-2">
+            {children}
         </div>
     );
 }

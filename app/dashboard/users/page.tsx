@@ -25,7 +25,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AlertCircle, Check, Loader2, RefreshCcw, X } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  Loader2,
+  RefreshCcw,
+  X,
+  Lock,
+} from "lucide-react";
 
 type Role = { id: string; name: string };
 type User = {
@@ -44,19 +51,43 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [search, setSearch] = useState("");
 
-  // 🔹 Fetch users
-  const { data: users = [], isLoading: usersLoading, error: usersError } = useQuery({
+  // ✅ USERS QUERY
+  const {
+    data: users,
+    isLoading: usersLoading,
+    error: usersError,
+  } = useQuery({
     queryKey: ["users"],
-    queryFn: async () => (await api.get("/users")).data,
+    queryFn: async () => {
+      try {
+        const res = await api.get("/users");
+        return res.data;
+      } catch (err: any) {
+        if (err.response?.status === 403) return null;
+        throw err;
+      }
+    },
   });
 
-  // 🔹 Fetch roles
-  const { data: roles = [], isLoading: rolesLoading, error: rolesError } = useQuery({
+  // ✅ ROLES QUERY
+  const {
+    data: roles,
+    isLoading: rolesLoading,
+    error: rolesError,
+  } = useQuery({
     queryKey: ["roles"],
-    queryFn: async () => (await api.get("/roles")).data || [],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/roles");
+        return res.data || [];
+      } catch (err: any) {
+        if (err.response?.status === 403) return null;
+        throw err;
+      }
+    },
   });
 
-  // 🔹 Assign/remove role
+  // ✅ MUTATION (SAFE)
   const toggleRole = useMutation({
     mutationFn: async ({
       userId,
@@ -66,11 +97,26 @@ export default function UsersPage() {
       userId: string;
       roleId: string;
       assigned: boolean;
-    }) =>
-      assigned
-        ? api.delete(`/users/${userId}/roles/${roleId}`)
-        : api.post(`/users/${userId}/roles/${roleId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
+    }) => {
+      try {
+        return assigned
+          ? await api.delete(`/users/${userId}/roles/${roleId}`)
+          : await api.post(`/users/${userId}/roles/${roleId}`);
+      } catch (err: any) {
+        if (err.response?.status === 403) {
+          throw new Error("FORBIDDEN");
+        }
+        throw err;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (err: any) => {
+      if (err.message === "FORBIDDEN") {
+        alert("You are not allowed to change roles 🚫");
+      }
+    },
   });
 
   const openModal = (user: User) => {
@@ -78,41 +124,51 @@ export default function UsersPage() {
     setModalOpen(true);
   };
 
-  // 🔹 Table columns
+  // ✅ TABLE
   const columns = useMemo<ColumnDef<User>[]>(() => [
     { accessorKey: "name", header: "Name" },
     { accessorKey: "email", header: "Email" },
     {
       accessorKey: "emailVerified",
       header: "Verified",
-      cell: (info) => (info.getValue() ? <Check className="text-green-500" /> : <X className="text-red-500" />),
+      cell: (info) =>
+        info.getValue() ? (
+          <Check className="text-green-500" />
+        ) : (
+          <X className="text-red-500" />
+        ),
     },
     {
       accessorKey: "createdAt",
       header: "Created At",
-      cell: (info) => new Date(info.getValue() as string).toLocaleDateString(),
+      cell: (info) =>
+        new Date(info.getValue() as string).toLocaleDateString(),
     },
     {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
-        <Button className="cursor-pointer" size="sm" onClick={() => openModal(row.original)} variant="outline">
+        <Button
+          size="sm"
+          onClick={() => openModal(row.original)}
+          variant="outline"
+          disabled={users === null}
+        >
           View/Edit Roles
         </Button>
       ),
     },
-  ], []);
+  ], [users]);
 
-  // 🔹 Filtered users
-  const filteredUsers = useMemo(
-    () =>
-      users.filter(
-        (u: any) =>
-          u.name.toLowerCase().includes(search.toLowerCase()) ||
-          u.email.toLowerCase().includes(search.toLowerCase())
-      ),
-    [users, search]
-  );
+  // ✅ FILTER
+  const filteredUsers = useMemo(() => {
+    if (!users || users === null) return [];
+    return users.filter(
+      (u: User) =>
+        u.name.toLowerCase().includes(search.toLowerCase()) ||
+        u.email.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [users, search]);
 
   const table = useReactTable({
     data: filteredUsers,
@@ -125,46 +181,46 @@ export default function UsersPage() {
     <div className="p-6 space-y-6 bg-background text-foreground min-h-screen">
       <h1 className="text-2xl font-bold">Users</h1>
 
+      {/* SEARCH */}
       <Input
         placeholder="Search users..."
         value={search}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-        className="mb-4 max-w-sm bg-card text-foreground border-border placeholder:text-muted-foreground"
+        onChange={(e) => setSearch(e.target.value)}
+        className="max-w-sm"
       />
 
-      {usersLoading ? (
-        <div className="flex flex-col items-center justify-center py-10 gap-2">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Loading users...</p>
+      {/* ✅ 403 STATE */}
+      {users === null ? (
+        <div className="flex flex-col items-center justify-center py-10 gap-3 border rounded-lg bg-yellow-100 border-yellow-400">
+          <Lock className="h-8 w-8 text-yellow-600" />
+          <p className="text-yellow-700 font-medium">
+            You don’t have permission to view users
+          </p>
+        </div>
+      ) : usersLoading ? (
+        <div className="flex flex-col items-center py-10 gap-2">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <p>Loading users...</p>
         </div>
       ) : usersError ? (
-        <div className="flex flex-col items-center justify-center py-10 gap-3 border rounded-lg bg-destructive/10 border-destructive">
-          <AlertCircle className="h-8 w-8 text-destructive" />
-          <div className="text-center">
-            <p className="text-destructive font-medium">Failed to load users</p>
-            <p className="text-sm text-muted-foreground">Something went wrong. Please try again.</p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => qc.invalidateQueries({ queryKey: ["users"] })}
-            className="flex items-center gap-2"
-          >
-            <RefreshCcw className="h-4 w-4" />
+        <div className="flex flex-col items-center py-10 gap-3">
+          <AlertCircle className="h-8 w-8 text-red-500" />
+          <p>Something went wrong</p>
+          <Button onClick={() => qc.invalidateQueries({ queryKey: ["users"] })}>
             Retry
           </Button>
         </div>
       ) : filteredUsers.length === 0 ? (
-        <div className="text-muted-foreground">No users found.</div>
+        <p>No users found</p>
       ) : (
-        <div className="overflow-x-auto border border-border rounded-md bg-card">
+        <div className="overflow-x-auto border rounded-md">
           <table className="min-w-full">
-            <thead className="bg-muted/50 text-muted-foreground">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <th key={header.id} className="border-b border-border px-4 py-2 text-left">
-                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+            <thead>
+              {table.getHeaderGroups().map((hg) => (
+                <tr key={hg.id}>
+                  {hg.headers.map((h) => (
+                    <th key={h.id} className="px-4 py-2 text-left">
+                      {flexRender(h.column.columnDef.header, h.getContext())}
                     </th>
                   ))}
                 </tr>
@@ -172,12 +228,9 @@ export default function UsersPage() {
             </thead>
             <tbody>
               {table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="transition-colors hover:bg-accent/20" // strong enough in dark mode
-                >
+                <tr key={row.id}>
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="border-b border-border px-4 py-2">
+                    <td key={cell.id} className="px-4 py-2">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -188,88 +241,67 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Pagination */}
-      <div className="flex justify-between items-center mt-4 text-foreground">
-        <Button size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+      {/* PAGINATION */}
+      <div className="flex justify-between">
+        <Button onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
           Previous
         </Button>
-        <div>
-          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
-        </div>
-        <Button size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+        <span>
+          Page {table.getState().pagination.pageIndex + 1} of{" "}
+          {table.getPageCount()}
+        </span>
+        <Button onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
           Next
         </Button>
       </div>
 
-      {/* Dialog for user roles */}
+      {/* MODAL */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="bg-background text-foreground border-border">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {selectedUser ? `Roles for ${selectedUser.name}` : "User Roles"}
-              <DialogDescription>
-                Roles determine the permissions a user has. Toggle roles to grant or revoke access.
-              </DialogDescription>
+              Roles for {selectedUser?.name}
             </DialogTitle>
+            <DialogDescription>
+              Toggle roles to manage access
+            </DialogDescription>
           </DialogHeader>
 
-          {rolesLoading ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading roles...</p>
-            </div>
+          {roles === null ? (
+            <p className="text-yellow-600">No permission to view roles</p>
+          ) : rolesLoading ? (
+            <Loader2 className="animate-spin" />
           ) : rolesError ? (
-            <div className="flex flex-col items-center justify-center py-6 gap-3">
-              <AlertCircle className="h-6 w-6 text-destructive" />
-              <p className="text-destructive text-sm font-medium">Failed to load roles</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => qc.invalidateQueries({ queryKey: ["roles"] })}
-                className="flex items-center gap-2"
-              >
-                <RefreshCcw className="h-4 w-4" />
-                Retry
-              </Button>
-            </div>
+            <p>Error loading roles</p>
           ) : (
-            <div className="space-y-3">
-              {roles.map((r: Role) => {
-                const assigned = selectedUser?.roles?.some((x) => x.id === r.id);
-                return (
-                  <Label key={r.id} className="flex items-center gap-2 text-foreground">
-                    <Checkbox
-                      checked={!!assigned}
-                      disabled={toggleRole.isPending}
-                      onCheckedChange={() => {
-                        if (!selectedUser) return;
-                        toggleRole.mutate(
-                          { userId: selectedUser.id, roleId: r.id, assigned: !!assigned },
-                          {
-                            onSuccess: () => {
-                              setSelectedUser((prev) => {
-                                if (!prev) return prev;
-                                const newRoles = assigned
-                                  ? prev.roles.filter((role) => role.id !== r.id)
-                                  : [...prev.roles, { id: r.id, name: r.name }];
-                                return { ...prev, roles: newRoles };
-                              });
-                            },
-                          }
-                        );
-                      }}
-                    />
-                    {r.name}
-                  </Label>
-                );
-              })}
-            </div>
+            roles.map((r: Role) => {
+              const assigned = selectedUser?.roles?.some(
+                (x) => x.id === r.id
+              );
+
+              return (
+                <Label key={r.id} className="flex items-center gap-2">
+                  <Checkbox
+                    checked={!!assigned}
+                    disabled={toggleRole.isPending}
+                    onCheckedChange={() => {
+                      if (!selectedUser) return;
+
+                      toggleRole.mutate({
+                        userId: selectedUser.id,
+                        roleId: r.id,
+                        assigned: !!assigned,
+                      });
+                    }}
+                  />
+                  {r.name}
+                </Label>
+              );
+            })
           )}
 
           <DialogFooter>
-            <Button variant="secondary" onClick={() => setModalOpen(false)}>
-              Close
-            </Button>
+            <Button onClick={() => setModalOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

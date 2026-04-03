@@ -5,6 +5,7 @@ import Providers from "@/components/providers";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { LandingHeader } from "@/components/landing-page/LandingHeader";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

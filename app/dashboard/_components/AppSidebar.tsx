@@ -42,7 +42,6 @@ export function AppSidebar() {
                 <div className="px-2 py-2 text-sm font-semibold tracking-tight p-2">
                     <div className="flex items-center gap-3">
                         <Command className="h-4 w-4 text-indigo-400" />
-                        <span className="tracking-wide">Admin Panel</span>
                     </div>
                 </div>
 
@@ -81,7 +80,7 @@ export function AppSidebar() {
             {/* Footer (user section) */}
             <SidebarFooter>
                 <SidebarMenu>
-                    <SidebarMenuItem>
+                    <SidebarMenuItem className="mb-4">
                         <SidebarMenuButton tooltip="Profile">
                             <Link href="/dashboard/profile" className="flex items-center gap-2 w-full">
                                 <User />

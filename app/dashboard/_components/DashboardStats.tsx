@@ -1,29 +1,60 @@
 "use client";
 
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Loader2 } from "lucide-react";
+import { Loader2, Lock } from "lucide-react";
 
 export function DashboardStats() {
-    const usersQuery = useSuspenseQuery({
+    const usersQuery = useQuery({
         queryKey: ["users"],
-        queryFn: async () => (await api.get("/users")).data || [],
+        queryFn: async () => {
+            try {
+                const res = await api.get("/users");
+                return res.data || [];
+            } catch (err: any) {
+                if (err.response?.status === 403) return null;
+                throw err;
+            }
+        },
     });
 
-    const rolesQuery = useSuspenseQuery({
+    const rolesQuery = useQuery({
         queryKey: ["roles"],
-        queryFn: async () => (await api.get("/roles")).data || [],
+        queryFn: async () => {
+            try {
+                const res = await api.get("/roles");
+                return res.data || [];
+            } catch (err: any) {
+                if (err.response?.status === 403) return null;
+                throw err;
+            }
+        },
     });
 
-    const permissionsQuery = useSuspenseQuery({
+    const permissionsQuery = useQuery({
         queryKey: ["permissions"],
-        queryFn: async () =>
-            (await api.get("/permissions")).data.data || [],
+        queryFn: async () => {
+            try {
+                const res = await api.get("/permissions");
+                return res.data.data || [];
+            } catch (err: any) {
+                if (err.response?.status === 403) return null;
+                throw err;
+            }
+        },
     });
 
-    const resourcesQuery = useSuspenseQuery({
+    const resourcesQuery = useQuery({
         queryKey: ["resources"],
-        queryFn: async () => (await api.get("/resources"))?.data || [],
+        queryFn: async () => {
+            try {
+                const res = await api.get("/resources");
+                return res.data || [];
+            } catch (err: any) {
+                if (err.response?.status === 403) return null;
+                throw err;
+            }
+        },
     });
 
     return (
@@ -31,31 +62,31 @@ export function DashboardStats() {
             <div
                 className="
           grid gap-4
-          grid-cols-1        // mobile
-          sm:grid-cols-2     // ≥640px
-          md:grid-cols-3     // ≥768px
-          xl:grid-cols-4     // ≥1280px
+          grid-cols-1
+          sm:grid-cols-2
+          md:grid-cols-3
+          xl:grid-cols-4
         "
             >
                 <StatCard
                     title="Users"
-                    value={usersQuery.data?.length}
-                    isLoading={usersQuery.isFetching}
+                    data={usersQuery.data}
+                    isLoading={usersQuery.isLoading}
                 />
                 <StatCard
                     title="Roles"
-                    value={rolesQuery.data?.length}
-                    isLoading={rolesQuery.isFetching}
+                    data={rolesQuery.data}
+                    isLoading={rolesQuery.isLoading}
                 />
                 <StatCard
                     title="Permissions"
-                    value={permissionsQuery.data?.length}
-                    isLoading={permissionsQuery.isFetching}
+                    data={permissionsQuery.data}
+                    isLoading={permissionsQuery.isLoading}
                 />
                 <StatCard
                     title="Resources"
-                    value={resourcesQuery.data?.length}
-                    isLoading={resourcesQuery.isFetching}
+                    data={resourcesQuery.data}
+                    isLoading={resourcesQuery.isLoading}
                 />
             </div>
         </div>
@@ -64,11 +95,13 @@ export function DashboardStats() {
 
 interface StatCardProps {
     title: string;
-    value?: number;
+    data?: any[] | null;
     isLoading?: boolean;
 }
 
-export function StatCard({ title, value, isLoading }: StatCardProps) {
+export function StatCard({ title, data, isLoading }: StatCardProps) {
+    const isForbidden = data === null;
+
     return (
         <div
             className="
@@ -80,24 +113,23 @@ export function StatCard({ title, value, isLoading }: StatCardProps) {
             {/* Title */}
             <div className="text-sm text-muted-foreground mb-1">{title}</div>
 
-            {/* Value + spinner */}
             <div className="flex items-center h-10 gap-2">
                 {isLoading ? (
                     <>
-                        {/* Reserve space so layout doesn't jump */}
-                        <span className="text-2xl font-bold leading-none opacity-0">0</span>
+                        <span className="text-2xl font-bold opacity-0">0</span>
                         <Loader2 className="h-5 w-5 animate-spin text-primary" />
                     </>
+                ) : isForbidden ? (
+                    <div className="flex items-center gap-2 text-red-500 text-sm">
+                        <Lock className="h-4 w-4" />
+                        No Access
+                    </div>
                 ) : (
-                    <span
-                        className="text-2xl font-bold leading-none transition-opacity opacity-100"
-                    >
-                        {value}
+                    <span className="text-2xl font-bold">
+                        {data?.length ?? 0}
                     </span>
                 )}
             </div>
         </div>
     );
 }
-
-

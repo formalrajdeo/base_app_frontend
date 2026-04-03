@@ -5,303 +5,436 @@ import { api } from "@/lib/api";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, Lock, AlertCircle } from "lucide-react";
 import { z } from "zod";
 import { getErrorMessage } from "@/utils/errors";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
-type Action = "read" | "create" | "update" | "delete";
-const ACTIONS: Action[] = ["read", "create", "update", "delete"];
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 
-// Zod Schemas
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+
+// ---------------- SCHEMA ----------------
 const createPermissionSchema = z.object({
-    resource: z.string().min(1, "Resource name is required"),
-    action: z.enum(ACTIONS),
-    description: z.string().min(5, "Description is required").max(200, "Description is too long"),
+    resource: z.string().min(1),
+    action: z.string().min(1),
+    description: z.string().min(5),
 });
 
 const assignPermissionSchema = z.object({
-    resource: z.string().min(1, "Select a resource"),
-    action: z.enum(ACTIONS),
+    resource: z.string().min(1),
+    action: z.string().min(1), // ✅ dynamic
 });
 
-interface Permission {
-    id: string;
-    resource: string;
-    action: Action;
-}
-
-interface Resource {
-    id: string;
-    name: string;
-    description?: string | null;
-}
+const DEFAULT_ACTIONS = ["read", "create", "update", "delete"];
 
 export default function PermissionsPage() {
-    const queryClient = useQueryClient();
+    const qc = useQueryClient();
 
-    // States
+    // ---------------- STATE ----------------
     const [newResourceName, setNewResourceName] = useState("");
-    const [newResourceDescription, setNewResourceDescription] = useState("");
-    const [newResourceAction, setNewResourceAction] = useState<Action>("read");
-    const [selectedResourceName, setSelectedResourceName] = useState("");
-    const [selectedAction, setSelectedAction] = useState<Action>("read");
-    const [inlineActions, setInlineActions] = useState<Record<string, string>>({});
+    const [newResourceDescription, setNewResourceDescription] =
+        useState("");
+    const [newResourceAction, setNewResourceAction] =
+        useState("read");
 
-    // Fetch Permissions
-    const { data: permissions = [], isLoading: loadingPermissions } = useQuery<Permission[]>({
+    // ---------------- QUERIES ----------------
+    const permissionsQuery = useQuery({
         queryKey: ["permissions"],
         queryFn: async () => {
-            const res = await api.get("/permissions");
-            const data = res.data?.data ?? res.data;
-            return Array.isArray(data) ? data : [];
+            try {
+                const res = await api.get("/permissions");
+                return res.data?.data ?? res.data;
+            } catch (err: any) {
+                if (err.response?.status === 403) return null;
+                throw err;
+            }
         },
     });
 
-    // Fetch Resources
-    const { data: resources = [], isLoading: loadingResources } = useQuery<Resource[]>({
+    const resourcesQuery = useQuery({
         queryKey: ["resources"],
         queryFn: async () => {
-            const res = await api.get("/resources");
-            const data = res.data?.data ?? res.data;
-            return Array.isArray(data) ? data : [];
+            try {
+                const res = await api.get("/resources");
+                return res.data?.data ?? res.data;
+            } catch (err: any) {
+                if (err.response?.status === 403) return null;
+                throw err;
+            }
         },
     });
 
-    // Group permissions by resource
-    const groupedPermissions = permissions.reduce<Record<string, Permission[]>>((acc, p) => {
+    const { data: permissions, isLoading: lp, error: pe } =
+        permissionsQuery;
+    const { data: resources, isLoading: lr, error: re } =
+        resourcesQuery;
+
+    // ---------------- MUTATIONS ----------------
+    const createPermission = useMutation({
+        mutationFn: async () => {
+            const parsed = createPermissionSchema.parse({
+                resource: newResourceName,
+                action: newResourceAction,
+                description: newResourceDescription,
+            });
+
+            const res = await api.post("/permissions", parsed);
+
+            if (res.data?.success === false) {
+                throw new Error(res.data.message);
+            }
+
+            return res.data;
+        },
+        onSuccess: () => {
+            toast.success("Created");
+            setNewResourceName("");
+            setNewResourceDescription("");
+            qc.invalidateQueries({ queryKey: ["permissions"] });
+            qc.invalidateQueries({ queryKey: ["resources"] });
+        },
+        onError: (err: any) => toast.error(err.message),
+    });
+
+    const addAction = useMutation({
+        mutationFn: async (data: {
+            resource: string;
+            action: string;
+        }) => {
+            const res = await api.post("/permissions", data);
+
+            if (res.data?.success === false) {
+                throw new Error(res.data.message);
+            }
+
+            return res.data;
+        },
+        onSuccess: () => {
+            toast.success("Action added");
+            qc.invalidateQueries({ queryKey: ["permissions"] });
+        },
+        onError: (err: any) => toast.error(err.message),
+    });
+
+    const deletePermission = useMutation({
+        mutationFn: async (id: string) =>
+            api.delete(`/permissions/${id}`),
+        onSuccess: () => {
+            toast.success("Deleted");
+            qc.invalidateQueries({ queryKey: ["permissions"] });
+        },
+    });
+
+    const deleteResource = useMutation({
+        mutationFn: async (id: string) =>
+            api.delete(`/resources/${id}`),
+        onSuccess: () => {
+            toast.success("Deleted");
+            qc.invalidateQueries({ queryKey: ["resources"] });
+            qc.invalidateQueries({ queryKey: ["permissions"] });
+        },
+    });
+
+    // ---------------- DERIVED ----------------
+    const safePermissions = Array.isArray(permissions)
+        ? permissions
+        : [];
+    const safeResources = Array.isArray(resources)
+        ? resources
+        : [];
+
+    const groupedPermissions = safePermissions.reduce<
+        Record<string, any[]>
+    >((acc, p) => {
         if (!acc[p.resource]) acc[p.resource] = [];
         acc[p.resource].push(p);
         return acc;
     }, {});
 
-    // Mutations
-    const createResourcePermission = useMutation({
-        mutationFn: async () => {
-            const parsed = createPermissionSchema.parse({ resource: newResourceName, action: newResourceAction, description: newResourceDescription });
-            return api.post("/permissions", parsed);
-        },
-        onSuccess: () => {
-            toast.success("Permission created");
-            setNewResourceName("");
-            setNewResourceDescription("");
-            setNewResourceAction("read");
-            queryClient.invalidateQueries({ queryKey: ["permissions"] });
-            queryClient.invalidateQueries({ queryKey: ["resources"] });
-        },
-        onError: (err: unknown) => {
-            toast.error(getErrorMessage(err));
-        }
-    });
+    // ---------------- UI STATES ----------------
+    if (permissions === null || resources === null) {
+        return (
+            <Center>
+                <Lock />
+                <p>No access</p>
+            </Center>
+        );
+    }
 
-    const assignAction = useMutation({
-        mutationFn: async () => {
-            const parsed = assignPermissionSchema.parse({ resource: selectedResourceName, action: selectedAction });
-            return api.post("/permissions", parsed);
-        },
-        onSuccess: () => {
-            toast.success("Action assigned");
-            setSelectedResourceName("");
-            setSelectedAction("read");
-            queryClient.invalidateQueries({ queryKey: ["permissions"] });
-        },
-        onError: (err: unknown) => {
-            toast.error(getErrorMessage(err));
-        },
-    });
+    if (lp || lr) {
+        return (
+            <Center>
+                <Loader2 className="animate-spin" />
+            </Center>
+        );
+    }
 
-    const addInlineAction = useMutation({
-        mutationFn: async ({ resource, action }: { resource: string; action: string }) =>
-            api.post("/permissions", { resource, action }),
-        onSuccess: (_, { resource }) => {
-            toast.success("Action added");
-            setInlineActions(prev => ({ ...prev, [resource]: "" }));
-            queryClient.invalidateQueries({ queryKey: ["permissions"] });
-        },
-        onError: (err: unknown) => {
-            toast.error(getErrorMessage(err));
-        },
-    });
+    if (pe || re) {
+        return (
+            <Center>
+                <AlertCircle />
+                <p>Error loading</p>
+            </Center>
+        );
+    }
 
-    const deletePermission = useMutation({
-        mutationFn: async (id: string) => api.delete(`/permissions/${id}`),
-        onSuccess: () => {
-            toast.success("Permission deleted");
-            queryClient.invalidateQueries({ queryKey: ["permissions"] });
-        },
-        onError: (err: unknown) => {
-            toast.error(getErrorMessage(err));
-        },
-    });
-
-    const deleteResource = useMutation({
-        mutationFn: async (id: string) => api.delete(`/resources/${id}`),
-        onSuccess: () => {
-            toast.success("Resource deleted");
-            queryClient.invalidateQueries({ queryKey: ["resources"] });
-            queryClient.invalidateQueries({ queryKey: ["permissions"] });
-        },
-        onError: (err: unknown) => {
-            toast.error(getErrorMessage(err));
-        },
-    });
-
+    // ---------------- UI ----------------
     return (
-        <div className="p-6 space-y-6 bg-background text-foreground dark:bg-background dark:text-foreground min-h-screen">
-            <h1 className="text-2xl font-bold">Manage Permissions + Resources</h1>
+        <div className="p-6 space-y-6">
+            <h1 className="text-2xl font-bold">Permissions</h1>
 
-            {/* Create New Resource + Action */}
-            <Card className="bg-card dark:bg-card/80 border border-border dark:border-border/70">
-                <CardHeader>Create New Resource + Action</CardHeader>
-                <CardContent className="flex gap-3 flex-wrap">
+            {/* CREATE */}
+            <Card>
+                <CardHeader>Create Permission</CardHeader>
+                <CardContent className="flex gap-2 flex-wrap">
                     <Input
-                        placeholder="Resource name"
+                        placeholder="Resource"
                         value={newResourceName}
-                        onChange={e => setNewResourceName(e.target.value)}
-                        className="bg-input dark:bg-input/80 text-foreground dark:text-foreground"
+                        onChange={(e) =>
+                            setNewResourceName(e.target.value)
+                        }
                     />
                     <Input
-                        placeholder="Resource description"
+                        placeholder="Description"
                         value={newResourceDescription}
-                        onChange={e => setNewResourceDescription(e.target.value)}
-                        className="bg-input dark:bg-input/80 text-foreground dark:text-foreground"
+                        onChange={(e) =>
+                            setNewResourceDescription(e.target.value)
+                        }
                     />
-                    <select
-                        className="border rounded px-3 py-2 bg-input dark:bg-input/80 text-foreground dark:text-foreground border-border dark:border-border/70 appearance-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
+
+                    <Select
                         value={newResourceAction}
-                        onChange={e => setNewResourceAction(e.target.value as Action)}
+                        onValueChange={(v) => setNewResourceAction(v)}
                     >
-                        {ACTIONS.map(a => (
-                            <option
-                                key={a}
-                                value={a}
-                                className="bg-background dark:bg-background text-foreground dark:text-foreground"
-                            >
-                                {a}
-                            </option>
-                        ))}
-                    </select>
-                    <Button onClick={() => createResourcePermission.mutate()} disabled={!newResourceName || !newResourceDescription}>
+                        <SelectTrigger className="w-40">
+                            <SelectValue placeholder="Action" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {DEFAULT_ACTIONS.map((a) => (
+                                <SelectItem key={a} value={a}>
+                                    {a}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    <Button onClick={() => createPermission.mutate()}>
                         Create
                     </Button>
                 </CardContent>
             </Card>
 
-            {/* Assign Action to Existing Resource */}
-            <Card className="bg-card dark:bg-card/80 border border-border dark:border-border/70">
-                <CardHeader>Assign Action to Existing Resource</CardHeader>
-                <CardContent className="flex gap-3 flex-wrap">
-                    <select
-                        className="border rounded px-3 py-2 bg-input dark:bg-input/80 text-foreground dark:text-foreground border-border dark:border-border/70 appearance-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
-                        value={selectedResourceName}
-                        onChange={e => setSelectedResourceName(e.target.value)}
-                    >
-                        <option value="" className="bg-background dark:bg-background text-foreground dark:text-foreground">
-                            Select Resource
-                        </option>
-                        {resources.map(r => (
-                            <option
-                                key={r.id}
-                                value={r.name}
-                                className="bg-background dark:bg-background text-foreground dark:text-foreground"
-                            >
-                                {r.name}
-                            </option>
-                        ))}
-                    </select>
+            {/* TABLE */}
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Resource</TableHead>
+                        <TableHead>Actions</TableHead>
+                        <TableHead className="text-right">
+                            Manage
+                        </TableHead>
+                    </TableRow>
+                </TableHeader>
 
-                    <select
-                        className="border rounded px-3 py-2 bg-input dark:bg-input/80 text-foreground dark:text-foreground border-border dark:border-border/70 appearance-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
-                        value={selectedAction}
-                        onChange={e => setSelectedAction(e.target.value as Action)}
-                    >
-                        {ACTIONS.map(a => (
-                            <option
-                                key={a}
-                                value={a}
-                                className="bg-background dark:bg-background text-foreground dark:text-foreground"
-                            >
-                                {a}
-                            </option>
-                        ))}
-                    </select>
-
-                    <Button disabled={!selectedResourceName} onClick={() => assignAction.mutate()}>
-                        Assign
-                    </Button>
-                </CardContent>
-            </Card>
-
-            {/* List All Resources */}
-            {loadingResources || loadingPermissions ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-2">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground dark:text-muted-foreground/80">Loading data...</p>
-                </div>
-            ) : (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {resources.map(r => {
+                <TableBody>
+                    {safeResources.map((r) => {
                         const perms = groupedPermissions[r.name] || [];
-                        return (
-                            <Card key={r.id} className="bg-card dark:bg-card/80 border border-border dark:border-border/70">
-                                <CardHeader className="flex justify-between items-center text-foreground dark:text-foreground">
-                                    <span className="font-semibold capitalize">{r.name}</span>
-                                    <button
-                                        onClick={() => deleteResource.mutate(r.id)}
-                                        className="text-destructive hover:text-destructive/80"
-                                        title="Delete Resource"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
-                                </CardHeader>
-                                <CardContent className="flex flex-col gap-3">
-                                    {perms.length ? (
-                                        <div className="flex flex-wrap gap-2">
-                                            {perms.map(p => (
-                                                <Badge
-                                                    key={p.id}
-                                                    className="flex items-center gap-1 bg-muted dark:bg-muted/50 text-muted-foreground dark:text-muted-foreground/80"
-                                                >
-                                                    {p.action}
-                                                    <button
-                                                        className="ml-1 text-destructive hover:text-destructive/80"
-                                                        title="Delete Permission"
-                                                        onClick={() => deletePermission.mutate(p.id)}
-                                                    >
-                                                        ×
-                                                    </button>
-                                                </Badge>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="text-muted-foreground dark:text-muted-foreground/80">No permissions yet</div>
-                                    )}
 
-                                    {/* Add Inline Action */}
-                                    <div className="flex gap-2 mt-2">
-                                        <Input
-                                            placeholder="New action"
-                                            value={inlineActions[r.name] || ""}
-                                            onChange={e => setInlineActions({ ...inlineActions, [r.name]: e.target.value })}
-                                            className="bg-input dark:bg-input/80 text-foreground dark:text-foreground"
-                                        />
-                                        <Button
-                                            onClick={() =>
-                                                addInlineAction.mutate({ resource: r.name, action: inlineActions[r.name] })
-                                            }
-                                            disabled={!inlineActions[r.name]}
-                                        >
-                                            Add
-                                        </Button>
+                        return (
+                            <TableRow key={r.id}>
+                                <TableCell>{r.name}</TableCell>
+
+                                {/* ACTIONS */}
+                                <TableCell>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {perms.length === 0 && (
+                                            <span className="text-muted-foreground text-sm">
+                                                No actions
+                                            </span>
+                                        )}
+
+                                        {perms.map((p: any) => (
+                                            <span
+                                                key={p.id}
+                                                className="flex items-center gap-1 bg-muted px-2 py-1 rounded text-sm"
+                                            >
+                                                {p.action}
+                                                <button
+                                                    className="text-red-500"
+                                                    onClick={() =>
+                                                        deletePermission.mutate(p.id)
+                                                    }
+                                                >
+                                                    ×
+                                                </button>
+                                            </span>
+                                        ))}
                                     </div>
-                                </CardContent>
-                            </Card>
+                                </TableCell>
+
+                                {/* MANAGE */}
+                                <TableCell className="flex justify-end gap-2">
+                                    <Dialog>
+                                        <DialogTrigger asChild>
+                                            <Button size="sm" variant="outline">
+                                                + Add
+                                            </Button>
+                                        </DialogTrigger>
+
+                                        <DialogContent>
+                                            <DialogHeader>
+                                                <DialogTitle>
+                                                    Manage Actions → {r.name}
+                                                </DialogTitle>
+                                                <DialogDescription>
+                                                    Actions can be assign or added
+                                                </DialogDescription>
+                                            </DialogHeader>
+
+                                            <AddActionForm
+                                                resource={r.name}
+                                                existingActions={perms.map(
+                                                    (p: any) => p.action
+                                                )}
+                                                onSubmit={(data) =>
+                                                    addAction.mutate(data)
+                                                }
+                                            />
+                                        </DialogContent>
+                                    </Dialog>
+
+                                    <Button
+                                        variant="destructive"
+                                        size="icon"
+                                        onClick={() =>
+                                            deleteResource.mutate(r.id)
+                                        }
+                                    >
+                                        <Trash2 size={16} />
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
                         );
                     })}
-                </div>
+                </TableBody>
+            </Table>
+        </div>
+    );
+}
+
+// ---------------- FORM ----------------
+function AddActionForm({
+    resource,
+    existingActions,
+    onSubmit,
+}: {
+    resource: string;
+    existingActions: string[];
+    onSubmit: (data: {
+        resource: string;
+        action: string;
+    }) => void;
+}) {
+    const [action, setAction] = useState("");
+    const [customAction, setCustomAction] = useState("");
+    const [error, setError] = useState("");
+
+    const finalAction = customAction || action;
+
+    const handleSubmit = () => {
+        try {
+            if (!finalAction) throw new Error("Action required");
+
+            if (existingActions.includes(finalAction)) {
+                throw new Error("Action already exists");
+            }
+
+            onSubmit({ resource, action: finalAction });
+
+            setAction("");
+            setCustomAction("");
+            setError("");
+        } catch (err: any) {
+            setError(err.message);
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <Select
+                value={action}
+                onValueChange={(v) => {
+                    setAction(v);
+                    setError("");
+                }}
+            >
+                <SelectTrigger>
+                    <SelectValue placeholder="Select action" />
+                </SelectTrigger>
+
+                <SelectContent>
+                    {DEFAULT_ACTIONS.filter(
+                        (a) => !existingActions.includes(a)
+                    ).map((a) => (
+                        <SelectItem key={a} value={a}>
+                            {a}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+
+            <Input
+                placeholder="Custom action (e.g. publish)"
+                value={customAction}
+                onChange={(e) => {
+                    setCustomAction(e.target.value);
+                    setError("");
+                }}
+            />
+
+            {error && (
+                <p className="text-sm text-red-500">{error}</p>
             )}
+
+            <Button className="w-full" onClick={handleSubmit}>
+                Add Action
+            </Button>
+        </div>
+    );
+}
+
+// ---------------- CENTER ----------------
+function Center({
+    children,
+}: {
+    children: React.ReactNode;
+}) {
+    return (
+        <div className="flex items-center justify-center h-full flex-col gap-2">
+            {children}
         </div>
     );
 }
