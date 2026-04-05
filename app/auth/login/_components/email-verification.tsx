@@ -37,7 +37,7 @@ export function EmailVerification({ email }: { email: string }) {
     setIsSending(true)
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/send-verification-email`,
+        `${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}/api/auth/send-verification-email`,
         {
           method: "POST",
           credentials: "include",

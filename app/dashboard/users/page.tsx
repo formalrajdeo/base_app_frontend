@@ -48,7 +48,7 @@ type User = {
 export default function UsersPage() {
   const qc = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   // ✅ USERS QUERY
@@ -87,7 +87,13 @@ export default function UsersPage() {
     },
   });
 
-  // ✅ MUTATION (SAFE)
+  // ✅ DERIVED USER (ALWAYS FRESH)
+  const selectedUser = useMemo(() => {
+    if (!users || !selectedUserId) return null;
+    return users.find((u: User) => u.id === selectedUserId) || null;
+  }, [users, selectedUserId]);
+
+  // ✅ MUTATION WITH OPTIMISTIC UPDATE
   const toggleRole = useMutation({
     mutationFn: async ({
       userId,
@@ -98,29 +104,49 @@ export default function UsersPage() {
       roleId: string;
       assigned: boolean;
     }) => {
-      try {
-        return assigned
-          ? await api.delete(`/users/${userId}/roles/${roleId}`)
-          : await api.post(`/users/${userId}/roles/${roleId}`);
-      } catch (err: any) {
-        if (err.response?.status === 403) {
-          throw new Error("FORBIDDEN");
-        }
-        throw err;
-      }
+      return assigned
+        ? await api.delete(`/users/${userId}/roles/${roleId}`)
+        : await api.post(`/users/${userId}/roles/${roleId}`);
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["users"] });
+
+    onMutate: async ({ userId, roleId, assigned }) => {
+      await qc.cancelQueries({ queryKey: ["users"] });
+
+      const prev = qc.getQueryData<User[]>(["users"]);
+
+      qc.setQueryData(["users"], (old: User[] | undefined) => {
+        if (!old) return old;
+
+        return old.map((u) => {
+          if (u.id !== userId) return u;
+
+          return {
+            ...u,
+            roles: assigned
+              ? u.roles.filter((r) => r.id !== roleId)
+              : [...u.roles, { id: roleId, name: "" }],
+          };
+        });
+      });
+
+      return { prev };
     },
-    onError: (err: any) => {
-      if (err.message === "FORBIDDEN") {
+
+    onError: (err: any, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["users"], ctx.prev);
+
+      if (err.response?.status === 403) {
         alert("You are not allowed to change roles 🚫");
       }
+    },
+
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
     },
   });
 
   const openModal = (user: User) => {
-    setSelectedUser(user);
+    setSelectedUserId(user.id);
     setModalOpen(true);
   };
 
@@ -189,13 +215,11 @@ export default function UsersPage() {
         className="max-w-sm"
       />
 
-      {/* ✅ 403 STATE */}
+      {/* STATES */}
       {users === null ? (
-        <div className="flex flex-col items-center justify-center py-10 gap-3 border rounded-lg bg-yellow-100 border-yellow-400">
+        <div className="flex flex-col items-center py-10 gap-3 border rounded-lg bg-yellow-100">
           <Lock className="h-8 w-8 text-yellow-600" />
-          <p className="text-yellow-700 font-medium">
-            You don’t have permission to view users
-          </p>
+          <p>You don't have permission to view users</p>
         </div>
       ) : usersLoading ? (
         <div className="flex flex-col items-center py-10 gap-2">
@@ -276,7 +300,7 @@ export default function UsersPage() {
           ) : (
             roles.map((r: Role) => {
               const assigned = selectedUser?.roles?.some(
-                (x) => x.id === r.id
+                (x: Role) => x.id === r.id
               );
 
               return (

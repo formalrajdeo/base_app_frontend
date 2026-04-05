@@ -12,7 +12,7 @@ export function PasskeyButton() {
   const passkeySignInMutation = useMutation({
     mutationFn: async (body: { autoFill?: boolean } = {}) => {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/sign-in/passkey`,
+        `${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}/api/auth/sign-in/passkey`,
         {
           method: "POST",
           credentials: "include",

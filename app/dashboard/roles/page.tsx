@@ -33,7 +33,6 @@ export const createRoleSchema = z.object({
 export default function RolesPage() {
     const qc = useQueryClient();
 
-    // ---------------- STATE ----------------
     const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
     const [newRole, setNewRole] = useState("");
     const [renameRoleName, setRenameRoleName] = useState("");
@@ -134,7 +133,7 @@ export default function RolesPage() {
         },
     });
 
-    // ---------------- UI STATES ----------------
+    // ---------------- STATES ----------------
     if (roles === null) {
         return (
             <Center>
@@ -163,71 +162,81 @@ export default function RolesPage() {
 
     // ---------------- UI ----------------
     return (
-        <div className="flex h-full">
+        <div className="flex flex-col md:flex-row h-full max-w-7xl mx-auto">
 
             {/* LEFT PANEL */}
-            <div className="w-80 border-r p-4 space-y-4">
-                <Input
-                    placeholder="New role..."
-                    value={newRole}
-                    onChange={(e) => setNewRole(e.target.value)}
-                />
+            <div className="w-full md:w-80 border-b md:border-b-0 md:border-r p-4 space-y-4 md:h-full md:sticky md:top-0 bg-background">
 
-                <Button
-                    onClick={() => {
-                        try {
-                            createRoleSchema.parse({ name: newRole });
-                            createRole.mutate();
-                        } catch (err: any) {
-                            toast.error(err.errors?.[0]?.message);
-                        }
-                    }}
-                >
-                    Create Role
-                </Button>
-
-                {(roles ?? []).map((r: any) => (
-                    <Card
-                        key={r.id}
-                        onClick={() => setSelectedRoleId(r.id)}
-                        className={`cursor-pointer ${selectedRoleId === r.id ? "border border-primary" : ""
-                            }`}
+                <div className="flex flex-col md:flex-row gap-2">
+                    <Input
+                        placeholder="New role..."
+                        value={newRole}
+                        onChange={(e) => setNewRole(e.target.value)}
+                    />
+                    <Button
+                        className="w-full md:w-auto"
+                        onClick={() => {
+                            try {
+                                createRoleSchema.parse({ name: newRole });
+                                createRole.mutate();
+                            } catch (err: any) {
+                                toast.error(err.errors?.[0]?.message);
+                            }
+                        }}
                     >
-                        <CardContent className="flex justify-between">
-                            {r.name}
+                        Create
+                    </Button>
+                </div>
 
-                            <div className="flex gap-2">
-                                <Button
-                                    size="sm"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedRoleId(r.id);
-                                        setRenameRoleName(r.name);
-                                        setOpenRenameDialog(true);
-                                    }}
-                                >
-                                    <Pencil size={16} />
-                                </Button>
+                <div className="space-y-2 max-h-75 md:max-h-none overflow-y-auto">
+                    {(roles ?? []).map((r: any) => (
+                        <Card
+                            key={r.id}
+                            onClick={() => setSelectedRoleId(r.id)}
+                            className={`cursor-pointer transition hover:bg-muted ${selectedRoleId === r.id ? "border border-primary" : ""
+                                }`}
+                        >
+                            <CardContent className="flex items-center justify-between gap-2 p-3">
+                                <span className="truncate">{r.name}</span>
 
-                                <Button
-                                    size="sm"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        deleteRole.mutate(r.id);
-                                    }}
-                                >
-                                    <Trash size={16} />
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
+                                <div className="flex gap-1 md:gap-2">
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedRoleId(r.id);
+                                            setRenameRoleName(r.name);
+                                            setOpenRenameDialog(true);
+                                        }}
+                                    >
+                                        <Pencil size={16} />
+                                    </Button>
+
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            deleteRole.mutate(r.id);
+                                        }}
+                                    >
+                                        <Trash size={16} />
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
             </div>
 
             {/* RIGHT PANEL */}
-            <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+            <div className="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto">
+
                 {!selectedRoleId ? (
-                    <p>Select a role</p>
+                    <p className="text-center text-gray-500">
+                        Select a role to manage permissions
+                    </p>
                 ) : roleLoading || resourcesLoading ? (
                     <Center>
                         <Loader2 className="animate-spin" />
@@ -236,7 +245,9 @@ export default function RolesPage() {
                     <p className="text-yellow-600">No permission</p>
                 ) : (
                     <>
-                        <h2 className="text-2xl font-bold">{selectedRole.name}</h2>
+                        <h2 className="text-2xl font-bold">
+                            {selectedRole.name}
+                        </h2>
 
                         {(resources ?? []).map((res: any) => {
                             const resourcePermissions = (res.permissions ?? []).map((p: any) => {
@@ -256,10 +267,10 @@ export default function RolesPage() {
 
                             return (
                                 <Card key={res.id}>
-                                    <CardContent className="space-y-3">
+                                    <CardContent className="space-y-3 p-4">
 
                                         {/* RESOURCE */}
-                                        <div className="flex justify-between items-center">
+                                        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
                                             <h3 className="font-semibold">{res.name}</h3>
                                             <Checkbox
                                                 checked={isResourceAssigned}
@@ -277,7 +288,7 @@ export default function RolesPage() {
                                             {resourcePermissions.map((p: any) => (
                                                 <label
                                                     key={p.id}
-                                                    className="flex items-center gap-2 border rounded px-3 py-1"
+                                                    className="flex items-center gap-2 border rounded px-3 py-1 text-sm md:text-base"
                                                 >
                                                     <Checkbox
                                                         checked={p.assigned}
@@ -315,8 +326,12 @@ export default function RolesPage() {
                     />
 
                     <DialogFooter>
-                        <Button onClick={() => setOpenRenameDialog(false)}>Cancel</Button>
-                        <Button onClick={() => renameRole.mutate()}>Rename</Button>
+                        <Button variant="ghost" onClick={() => setOpenRenameDialog(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={() => renameRole.mutate()}>
+                            Rename
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
